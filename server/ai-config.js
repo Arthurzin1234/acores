@@ -5,10 +5,11 @@ import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 export const MODEL_DEFAULTS = {
   openai: "gpt-4.1-mini",
   gemini: "gemini-3.1-flash-lite",
+  grok: "grok-3-mini",
 };
 
 export function createAIConfig(db, dataDir, env = process.env) {
-  if (env.AI_PROVIDER && !['rules', 'openai', 'gemini'].includes(env.AI_PROVIDER))
+  if (env.AI_PROVIDER && !['rules', 'openai', 'gemini', 'grok'].includes(env.AI_PROVIDER))
     throw new Error('AI_PROVIDER invalido.');
   for (const key of ['OPENAI_MODEL', 'GEMINI_MODEL'])
     if (env[key] && !/^[a-zA-Z0-9._-]{1,100}$/.test(env[key])) throw new Error('Modelo de IA invalido.');
@@ -16,10 +17,14 @@ export function createAIConfig(db, dataDir, env = process.env) {
     id INTEGER PRIMARY KEY CHECK(id=1), provider TEXT NOT NULL DEFAULT 'rules',
     openai_model TEXT NOT NULL DEFAULT 'gpt-4.1-mini',
     gemini_model TEXT NOT NULL DEFAULT 'gemini-3.1-flash-lite',
-    openai_secret TEXT, gemini_secret TEXT,
+    grok_model TEXT NOT NULL DEFAULT 'grok-3-mini',
+    openai_secret TEXT, gemini_secret TEXT, grok_secret TEXT,
     knowledge TEXT NOT NULL DEFAULT '[]'
   )`);
   db.prepare("INSERT OR IGNORE INTO ai_settings (id) VALUES (1)").run();
+  const columns = new Set(db.prepare('PRAGMA table_info(ai_settings)').all().map((column) => column.name));
+  if (!columns.has('grok_secret')) db.exec('ALTER TABLE ai_settings ADD COLUMN grok_secret TEXT');
+  if (!columns.has('grok_model')) db.exec("ALTER TABLE ai_settings ADD COLUMN grok_model TEXT NOT NULL DEFAULT 'grok-3-mini'");
   const keyPath = path.join(dataDir, "ai-encryption.key");
   let encryptionKey;
   function getEncryptionKey() {
@@ -73,8 +78,10 @@ export function createAIConfig(db, dataDir, env = process.env) {
         provider: env.AI_PROVIDER || row.provider,
         openaiModel: env.OPENAI_MODEL || row.openai_model,
         geminiModel: env.GEMINI_MODEL || row.gemini_model,
+        grokModel: env.GROK_MODEL || row.grok_model,
         openaiConfigured: !!(row.openai_secret || env.OPENAI_API_KEY),
         geminiConfigured: !!(row.gemini_secret || env.GEMINI_API_KEY),
+        grokConfigured: !!(row.grok_secret || env.GROK_API_KEY),
         knowledge: JSON.parse(row.knowledge),
         ignoreGroups: true,
         ignoreArchived: true,
@@ -89,7 +96,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
         model: env[`${provider.toUpperCase()}_MODEL`] || row[`${provider}_model`],
         key:
           env[
-            provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"
+          provider === "openai" ? "OPENAI_API_KEY" : provider === "gemini" ? "GEMINI_API_KEY" : "GROK_API_KEY"
           ] || decrypt(row[`${provider}_secret`]) ||
           "",
       };
@@ -97,7 +104,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
     save(input) {
       const row = read();
       const provider = input.provider ?? row.provider;
-      if (!["rules", "openai", "gemini"].includes(provider))
+      if (!["rules", "openai", "gemini", "grok"].includes(provider))
         throw new Error("Selecione um provedor válido.");
       const models = {};
       const secrets = {};
@@ -152,12 +159,14 @@ export function createAIConfig(db, dataDir, env = process.env) {
         return { id: item.id, question, answer };
       });
       db.prepare(
-        `UPDATE ai_settings SET provider=?, openai_model=?, gemini_model=?,
-        openai_secret=?, gemini_secret=?, knowledge=? WHERE id=1`,
+        `UPDATE ai_settings SET provider=?, openai_model=?, gemini_model=?, grok_model=?,
+        grok_secret=?, openai_secret=?, gemini_secret=?, knowledge=? WHERE id=1`,
       ).run(
         provider,
         models.openai,
         models.gemini,
+        models.grok,
+        secrets.grok,
         secrets.openai,
         secrets.gemini,
         JSON.stringify(cleaned),

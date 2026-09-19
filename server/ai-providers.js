@@ -118,6 +118,19 @@ export async function requestDecision({
         responseJsonSchema: decisionSchema,
       },
     };
+  } else if (provider === "grok") {
+    url = "https://api.x.ai/v1/chat/completions";
+    headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+    body = {
+      model,
+      temperature: 0,
+      max_tokens: 700,
+      messages: [
+        { role: "system", content: instructions },
+        { role: "user", content: payload },
+      ],
+      response_format: { type: "json_object" },
+    };
   } else throw failure('ai_config');
   let response;
   try {
@@ -150,7 +163,7 @@ export async function requestDecision({
       .filter((part) => part.type === "output_text")
       .map((part) => part.text)
       .join("");
-  } else {
+  } else if (provider === "gemini") {
     const candidate = result.candidates?.[0];
     if (candidate?.finishReason !== "STOP")
       throw failure('ai_response');
@@ -158,6 +171,8 @@ export async function requestDecision({
       ?.filter((part) => !part.thought)
       .map((part) => part.text || "")
       .join("");
+  } else {
+    output = result.choices?.[0]?.message?.content;
   }
   try {
     return validateDecision(JSON.parse(output));

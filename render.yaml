@@ -40,6 +40,10 @@ services:
         value: gemini
       - key: GEMINI_API_KEY
         sync: false
+      - key: GROK_API_KEY
+        sync: false
+      - key: GROK_MODEL
+        value: grok-3-mini
       - key: WHATSAPP_AUTOSTART
         value: "true"
       - key: ENABLE_SIMULATOR

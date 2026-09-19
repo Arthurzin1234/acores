@@ -190,7 +190,7 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
       const read = req.method === 'GET';
       const ownRead = read && (/^\/(dashboard|clients|tickets)$/.test(route) || /^\/tickets\/[1-9]\d*\/messages$/.test(route));
       const ownUpdate = req.method === 'PATCH' && /^\/clients\/[1-9]\d*$/.test(route);
-      const technical = /^\/whatsapp\/(status|start|sync|relink)$/.test(route) || /^\/ai\/test\/(openai|gemini)$/.test(route) || /^\/operations\/(status|check)$/.test(route);
+      const technical = /^\/whatsapp\/(status|start|sync|relink)$/.test(route) || /^\/ai\/test\/(openai|gemini|grok)$/.test(route) || /^\/operations\/(status|check)$/.test(route);
       const clinical = /^\/(dashboard|clients|tickets|appointments|checklist|neonatal|notifications)(\/|$)/.test(route);
       let allowed = role === 'administrador' || (role === 'atendente' && clinical && req.method !== 'DELETE') ||
         (role === 'tecnico' && (technical || (read && route === '/dashboard'))) || (role === 'usuario' && (ownRead || ownUpdate));

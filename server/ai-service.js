@@ -235,7 +235,18 @@ export function createAIService(
           }, signal);
         } catch (error) {
           if (signal?.aborted) throw error;
-          return unavailable();
+          if (saved.provider === 'gemini' && config.snapshot().grokConfigured) {
+            try {
+              decision = await request('grok', {
+                text,
+                history,
+                knowledge: approvedCatalog(settings, saved.knowledge),
+              }, signal);
+            } catch (fallbackError) {
+              if (signal?.aborted) throw fallbackError;
+              return unavailable();
+            }
+          } else return unavailable();
         }
       } else {
         runtime = {
