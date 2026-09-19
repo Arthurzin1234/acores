@@ -34,6 +34,8 @@ services:
         value: /var/data/acores/whatsapp
       - key: INITIAL_ADMIN_EMAIL
         value: acores@gmail.com
+      - key: INITIAL_ADMIN_USERNAME
+        value: admin123
       - key: INITIAL_ADMIN_PASSWORD
         sync: false
       - key: AI_PROVIDER
