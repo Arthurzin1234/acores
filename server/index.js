@@ -8,9 +8,19 @@ import { safeLog } from './reliability.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (fs.existsSync(path.join(rootDir, '.env'))) process.loadEnvFile(path.join(rootDir, '.env'));
-const runtime = resolveRuntime(rootDir,process.env);
+let runtime = resolveRuntime(rootDir,process.env);
 if (runtime.render && !fs.existsSync(runtime.persistentRoot)) {
-  fs.mkdirSync(runtime.persistentRoot, { recursive: true });
+  try {
+    fs.mkdirSync(runtime.persistentRoot, { recursive: true });
+  } catch (error) {
+    if (error?.code !== 'EACCES' && error?.code !== 'EROFS') throw error;
+    const ephemeralRoot = '/tmp/acores';
+    const dataDir = `${ephemeralRoot}/data`;
+    const authDir = `${ephemeralRoot}/whatsapp`;
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.mkdirSync(authDir, { recursive: true });
+    runtime = { ...runtime, persistentRoot: ephemeralRoot, dataDir, authDir };
+  }
   safeLog('ephemeral_storage_enabled', {
     warning: 'Render sem disco persistente; dados locais podem ser perdidos ao reiniciar.'
   });
