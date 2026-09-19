@@ -8,6 +8,12 @@ import { safeLog } from './reliability.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (fs.existsSync(path.join(rootDir, '.env'))) process.loadEnvFile(path.join(rootDir, '.env'));
+console.log(`
+@bernardino
+========================================
+  Centro Veterinario dos Acores
+========================================
+`);
 let runtime = resolveRuntime(rootDir,process.env);
 if (runtime.render && !fs.existsSync(runtime.persistentRoot)) {
   try {
