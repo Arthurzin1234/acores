@@ -18,6 +18,7 @@
     "security:scan": "node scripts/security-scan.mjs",
     "security:admin": "node --no-warnings=ExperimentalWarning scripts/admin.mjs",
     "backup": "node --no-warnings=ExperimentalWarning scripts/backup.mjs",
+    "migrate:postgres": "node --no-warnings=ExperimentalWarning scripts/migrate-sqlite-to-postgres.mjs",
     "package:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-vercel.ps1"
   },
   "dependencies": {
