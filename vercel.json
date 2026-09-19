@@ -7,11 +7,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://SEU-WORKER-PERSISTENTE.example.com/api/$1"
+      "destination": "https://acores.onrender.com/api/$1"
     },
     {
       "source": "/ws",
-      "destination": "https://SEU-WORKER-PERSISTENTE.example.com/ws"
+      "destination": "https://acores.onrender.com/ws"
     },
     {
       "source": "/(.*)",

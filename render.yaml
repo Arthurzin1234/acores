@@ -24,6 +24,8 @@ services:
         value: "1"
       - key: PERSISTENT_ROOT
         value: /var/data/acores
+      - key: ALLOW_EPHEMERAL_STORAGE
+        value: "true"
       - key: DATA_DIR
         value: /var/data/acores/data
       - key: WHATSAPP_AUTH_DIR
