@@ -19,7 +19,7 @@
     "package:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-vercel.ps1"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vitejs/plugin-react": "^6.1.1",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "3.0.3",
     "concurrently": "^9.2.1",
