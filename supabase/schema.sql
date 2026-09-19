@@ -124,8 +124,10 @@ create table if not exists ai_settings (
   provider text not null default 'rules',
   openai_model text not null default 'gpt-4.1-mini',
   gemini_model text not null default 'gemini-3.1-flash-lite',
+  grok_model text not null default 'grok-3-mini',
   openai_secret text,
   gemini_secret text,
+  grok_secret text,
   knowledge jsonb not null default '[]'::jsonb
 );
 

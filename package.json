@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.x" },
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "start": "node --no-warnings=ExperimentalWarning server/index.js",
     "dev": "concurrently -k -n api,web -c cyan,magenta \"node --no-warnings=ExperimentalWarning server/index.js\" \"vite --host 127.0.0.1\"",
@@ -28,6 +30,7 @@
     "express-rate-limit": "8.7.0",
     "helmet": "8.3.0",
     "lucide-react": "^0.544.0",
+    "pg": "^8.16.3",
     "pino": "^9.9.4",
     "qrcode": "^1.5.4",
     "react": "^19.1.1",
