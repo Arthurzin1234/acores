@@ -1,0 +1,5 @@
+# Replace the literal domain. Only Caddy listens publicly on ports 80/443.
+clinic.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3333
+}

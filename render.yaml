@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: acores-central
+    runtime: node
+    plan: 1c-2g
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: off
+    disk:
+      name: acores-persistent
+      mountPath: /var/data/acores
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: BIND_HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "1"
+      - key: PERSISTENT_ROOT
+        value: /var/data/acores
+      - key: DATA_DIR
+        value: /var/data/acores/data
+      - key: WHATSAPP_AUTH_DIR
+        value: /var/data/acores/whatsapp
+      - key: INITIAL_ADMIN_EMAIL
+        value: acores@gmail.com
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: WHATSAPP_AUTOSTART
+        value: "true"
+      - key: ENABLE_SIMULATOR
+        value: "false"
+      - key: SEED_DEMO
+        value: "false"
+      - key: MEMORY_ALERT_MB
+        value: "1536"
