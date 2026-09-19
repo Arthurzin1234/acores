@@ -26,7 +26,8 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
   const parsed = new URL(origin);
   if (parsed.origin !== origin || parsed.username || parsed.password ||
       (production && parsed.protocol !== 'https:')) throw new Error('APP_ORIGIN inválido: produção exige HTTPS.');
-  const origins = new Set(production ? [origin] : [origin, 'http://127.0.0.1:3333', 'http://localhost:5173']);
+  const configuredOrigins = String(env.ALLOWED_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean);
+  const origins = new Set(production ? [origin, ...configuredOrigins] : [origin, ...configuredOrigins, 'http://127.0.0.1:3333', 'http://localhost:5173']);
   const hosts = new Set([...origins].map((value) => new URL(value).host));
   const cookieName = production ? '__Host-acores_session' : 'acores_session';
   const ttl = 8 * 60 * 60 * 1000;

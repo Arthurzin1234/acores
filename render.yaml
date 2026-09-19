@@ -22,6 +22,8 @@ services:
         value: 0.0.0.0
       - key: TRUST_PROXY
         value: "1"
+      - key: ALLOWED_ORIGINS
+        value: https://acores-five.vercel.app
       - key: PERSISTENT_ROOT
         value: /var/data/acores
       - key: ALLOW_EPHEMERAL_STORAGE
