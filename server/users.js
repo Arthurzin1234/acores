@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
-const secret = z.string().min(12).refine((value) => Buffer.byteLength(value) <= 72);
+const secret = z.string().min(10).refine((value) => Buffer.byteLength(value) <= 72);
 export function createUserManager(db, { existingLogin = () => null, changed = () => {} } = {}) {
   const list = () => db.prepare('SELECT id,email,username,role,active,must_change_password FROM auth_users ORDER BY id LIMIT 500').all();
   const schema = z.object({email:z.string().email().max(254).transform((v) => v.toLowerCase()),

@@ -37,8 +37,8 @@ function LegalConsent({ legal, agreed, setAgreed, open }) {
 function PasswordForm({ busy, error, onSave }) {
   return <form className="auth-fields" onSubmit={(event) => { event.preventDefault(); onSave(Object.fromEntries(new FormData(event.currentTarget))); }}>
     <AuthField label="Senha atual" icon={LockKeyhole} password name="currentPassword" required autoComplete="current-password" />
-    <AuthField label="Nova senha" icon={LockKeyhole} password name="password" required minLength={12} maxLength={72} autoComplete="new-password" placeholder="No mínimo 12 caracteres" />
-    <AuthField label="Confirme a nova senha" icon={LockKeyhole} password name="confirmation" required minLength={12} maxLength={72} autoComplete="new-password" />
+    <AuthField label="Nova senha" icon={LockKeyhole} password name="password" required minLength={10} maxLength={72} autoComplete="new-password" placeholder="No mínimo 10 caracteres" />
+    <AuthField label="Confirme a nova senha" icon={LockKeyhole} password name="confirmation" required minLength={10} maxLength={72} autoComplete="new-password" />
     {error && <p className="auth-error" role="alert">{error}</p>}
     <button className="primary-button auth-submit" disabled={busy}><Check />{busy ? 'Salvando...' : 'Salvar nova senha'}</button>
   </form>;
@@ -96,7 +96,7 @@ export default function AuthGate({ children }) {
     <form className="auth-fields" onSubmit={submit}>
       {session?.setupRequired && <AuthField label="Código de instalação" icon={LockKeyhole} name="token" required autoComplete="off" password />}
       <AuthField label={session?.setupRequired ? 'E-mail' : 'E-mail ou usuário'} icon={Mail} name="email" type={session?.setupRequired ? 'email' : 'text'} autoComplete="username" required maxLength={254} autoCapitalize="none" spellCheck={false} />
-      <AuthField label="Senha" icon={LockKeyhole} name="password" password autoComplete={session?.setupRequired ? 'new-password' : 'current-password'} required minLength={session?.setupRequired ? 12 : 1} maxLength={72} />
+      <AuthField label="Senha" icon={LockKeyhole} name="password" password autoComplete={session?.setupRequired ? 'new-password' : 'current-password'} required minLength={session?.setupRequired ? 10 : 1} maxLength={72} />
       <LegalConsent legal={legal} agreed={agreed} setAgreed={setAgreed} open={setDocument} />
       {error && <p className="auth-error" role="alert">{error}</p>}
       {(!session || !legal) && error && <button className="secondary-button" type="button" onClick={reconnect} disabled={busy}>Tentar conectar novamente</button>}

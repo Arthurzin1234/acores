@@ -11,7 +11,7 @@ const digest = (value) => createHash('sha256').update(value).digest('hex');
 const token = () => randomBytes(32).toString('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export const roles = ['usuario', 'atendente', 'tecnico', 'administrador'];
-const password = z.string().min(12).refine((v) => Buffer.byteLength(v) <= 72);
+const password = z.string().min(10).refine((v) => Buffer.byteLength(v) <= 72);
 const loginPassword = z.string().min(1).refine((v) => Buffer.byteLength(v) <= 72);
 const loginSchema = z.object({ email: z.string().trim().min(3).max(254).regex(/^[a-zA-Z0-9._@+-]+$/).transform((v) => v.toLowerCase()), password: loginPassword,
   acceptedTerms: z.literal(true), privacyAcknowledged: z.literal(true), legalVersion: z.literal(legalDocuments.version),
@@ -51,7 +51,7 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
   if (!db.prepare('SELECT 1 FROM auth_users LIMIT 1').get() && (env.INITIAL_ADMIN_EMAIL || env.INITIAL_ADMIN_PASSWORD)) {
     const initial = z.object({ email: z.string().email().max(254).transform((v) => v.toLowerCase()), password })
       .safeParse({ email: env.INITIAL_ADMIN_EMAIL, password: env.INITIAL_ADMIN_PASSWORD });
-    if (!initial.success) throw new Error('Configure INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD com ao menos 12 caracteres e no maximo 72 bytes.');
+    if (!initial.success) throw new Error('Configure INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD com ao menos 10 caracteres e no maximo 72 bytes.');
     const username = String(env.INITIAL_ADMIN_USERNAME || 'acores').trim();
     if (!/^[a-zA-Z0-9._-]{3,80}$/.test(username)) throw new Error('INITIAL_ADMIN_USERNAME invalido.');
     db.prepare("INSERT INTO auth_users(email,username,password_hash,role,must_change_password) VALUES (?,?,?,'administrador',1)")
