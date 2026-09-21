@@ -422,7 +422,6 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     author: client.name,
     body: text,
   });
-  await conversationMemory.append(normalizedPhone, { direction: 'inbound', author: client.name, body: text }).catch(() => {});
   if (analysis.handoffComplete) store.updateTicket(ticket.id, { ai_paused: true });
   const replyMessage =
     source === "whatsapp"
@@ -432,7 +431,6 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
           author: analysis.humanRequired ? `${assistantName} + equipe` : assistantName,
           body: analysis.reply,
         });
-  if (replyMessage) await conversationMemory.append(normalizedPhone, replyMessage).catch(() => {});
 
   if (analysis.aiUnavailable || !shouldReuse || (analysis.humanRequired && !activeTicket.human_required)) {
     const notification = buildHumanNotification(client, ticket);
@@ -453,6 +451,8 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
 
   return payload;
   });
+  await conversationMemory.append(normalizedPhone, { direction: 'inbound', author: result.client?.name || name || 'Cliente', body: text }).catch(() => {});
+  if (result.message) await conversationMemory.append(normalizedPhone, result.message).catch(() => {});
   broadcast();
   return result;
 }

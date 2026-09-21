@@ -52,7 +52,7 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
     const initial = z.object({ email: z.string().email().max(254).transform((v) => v.toLowerCase()), password })
       .safeParse({ email: env.INITIAL_ADMIN_EMAIL, password: env.INITIAL_ADMIN_PASSWORD });
     if (!initial.success) throw new Error('Configure INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD com ao menos 12 caracteres e no maximo 72 bytes.');
-    const username = String(env.INITIAL_ADMIN_USERNAME || 'admin123').trim();
+    const username = String(env.INITIAL_ADMIN_USERNAME || 'acores').trim();
     if (!/^[a-zA-Z0-9._-]{3,80}$/.test(username)) throw new Error('INITIAL_ADMIN_USERNAME invalido.');
     db.prepare("INSERT INTO auth_users(email,username,password_hash,role,must_change_password) VALUES (?,?,?,'administrador',1)")
       .run(initial.data.email, username, bcrypt.hashSync(initial.data.password, 12));
