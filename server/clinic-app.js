@@ -15,6 +15,7 @@ import { validateRequests } from './validation.js';
 import { createHealthMonitor } from './health-monitor.js';
 import { safeLog } from './reliability.js';
 import { createUserManager, registerUsers } from './users.js';
+import { createConversationMemory } from './conversation-memory.js';
 
 export function createClinicApp({ rootDir, dataDir, authDir }) {
 const company={id:'acores',name:'Centro Veterinário dos Açores',primary:true};
@@ -22,6 +23,8 @@ const petshopName = company.name;
 const assistantName = 'Açores IA';
 const humanTeamName = process.env.HUMAN_TEAM_NAME || 'Equipe da recepcao';
 const store = createDatabase(rootDir, dataDir);
+const conversationMemory = createConversationMemory(process.env);
+conversationMemory.init().catch(() => {});
 if (process.env.SEED_DEMO === 'true' && process.env.NODE_ENV !== 'production') seedDatabase(store);
 const clinic = createClinicStore(store.raw);
 const aiConfig = createAIConfig(
@@ -323,6 +326,7 @@ return { app, security, store, clinic, aiConfig, whatsapp, monitor, upgrade, bro
     await Promise.all([monitor.stop(), whatsapp.stop()]);
     await drain();
     store.raw.close();
+    await conversationMemory.close();
   },
 };
 
@@ -332,6 +336,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
   if (!String(text || "").trim()) throw new Error("Mensagem vazia.");
 
   let activeTicket = store.findActiveTicket(normalizedPhone);
+  const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(normalizedPhone).catch(() => []) : [];
   if (activeTicket?.status === "em_atendimento" || activeTicket?.ai_paused) {
     const result = commit(() => {
     const message = store.addMessage(activeTicket.id, {
@@ -346,9 +351,10 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
       humanActive: true,
     };
     });
+    await conversationMemory.append(normalizedPhone, result.message).catch(() => {});
     broadcast(); return result;
   }
-  const history = activeTicket ? store.listMessages(activeTicket.id) : [];
+  const history = cloudHistory.length ? cloudHistory : (activeTicket ? store.listMessages(activeTicket.id) : []);
   const existingClient = store.getClientByPhone(normalizedPhone);
   const intake = collectPatient(text, history, existingClient || {});
   const analysis = await ai.analyze(
@@ -416,6 +422,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     author: client.name,
     body: text,
   });
+  await conversationMemory.append(normalizedPhone, { direction: 'inbound', author: client.name, body: text }).catch(() => {});
   if (analysis.handoffComplete) store.updateTicket(ticket.id, { ai_paused: true });
   const replyMessage =
     source === "whatsapp"
@@ -425,6 +432,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
           author: analysis.humanRequired ? `${assistantName} + equipe` : assistantName,
           body: analysis.reply,
         });
+  if (replyMessage) await conversationMemory.append(normalizedPhone, replyMessage).catch(() => {});
 
   if (analysis.aiUnavailable || !shouldReuse || (analysis.humanRequired && !activeTicket.human_required)) {
     const notification = buildHumanNotification(client, ticket);

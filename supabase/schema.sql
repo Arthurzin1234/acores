@@ -182,6 +182,15 @@ create table if not exists wa_human_inbox (
   primary key(account, message_id)
 );
 
+create table if not exists conversation_memory (
+  id bigserial primary key,
+  phone text not null,
+  direction text not null check (direction in ('inbound','outbound')),
+  author text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_tickets_status_priority on tickets(status, priority);
 create index if not exists idx_tickets_phone on tickets(phone);
 create index if not exists idx_messages_ticket_created on messages(ticket_id, created_at);
@@ -189,6 +198,7 @@ create index if not exists idx_notifications_read on notifications(read_at, crea
 create index if not exists idx_appointments_schedule on appointments(scheduled_at);
 create index if not exists idx_wa_jobs_pending on wa_jobs(account, state, next_at);
 create index if not exists idx_wa_outbox_pending on wa_outbox(account, state, seq);
+create index if not exists idx_conversation_memory_phone on conversation_memory(phone, created_at);
 
 insert into clinic_settings(id) values (1) on conflict (id) do nothing;
 insert into ai_settings(id) values (1) on conflict (id) do nothing;
