@@ -65,6 +65,7 @@ export default function App() {
     const payload = await api.dashboard();
     setDashboard(payload);
     setError("");
+    return payload;
   }, []);
   useEffect(() => {
     refresh().catch((err) => setError(err.message));
@@ -139,7 +140,13 @@ export default function App() {
     try {
       const result = await action();
       try {
-        await refresh();
+        let payload = await refresh();
+        if (['starting', 'reconnecting', 'qr'].includes(result?.mode)) {
+          for (let attempt = 0; attempt < 15 && !payload?.whatsapp?.qrDataUrl && !payload?.whatsapp?.connected; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            payload = await refresh();
+          }
+        }
       } catch {
         notify(
           "Registro salvo. Atualize o painel para carregar os dados.",
