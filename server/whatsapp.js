@@ -135,8 +135,9 @@ export class WhatsAppConnector {
             if (!saved) continue;
             try { await this.handleHumanMessage(saved); }
             catch (error) {
-              this.spool?.put(this.policy.account, saved);
-              throw error;
+              try { this.spool?.put(this.policy.account, saved); }
+              catch { /* The alert below still records the failure safely. */ }
+              this.report(error?.fault ? error : failure('database_failure'));
             }
           } else if (type === 'notify') this.receive(message);
         }
