@@ -19,12 +19,14 @@ export function createAIConfig(db, dataDir, env = process.env) {
     gemini_model TEXT NOT NULL DEFAULT 'gemini-3.1-flash-lite',
     grok_model TEXT NOT NULL DEFAULT 'grok-3-mini',
     openai_secret TEXT, gemini_secret TEXT, grok_secret TEXT,
-    knowledge TEXT NOT NULL DEFAULT '[]'
+    knowledge TEXT NOT NULL DEFAULT '[]',
+    instructions TEXT NOT NULL DEFAULT ''
   )`);
   db.prepare("INSERT OR IGNORE INTO ai_settings (id) VALUES (1)").run();
   const columns = new Set(db.prepare('PRAGMA table_info(ai_settings)').all().map((column) => column.name));
   if (!columns.has('grok_secret')) db.exec('ALTER TABLE ai_settings ADD COLUMN grok_secret TEXT');
   if (!columns.has('grok_model')) db.exec("ALTER TABLE ai_settings ADD COLUMN grok_model TEXT NOT NULL DEFAULT 'grok-3-mini'");
+  if (!columns.has('instructions')) db.exec("ALTER TABLE ai_settings ADD COLUMN instructions TEXT NOT NULL DEFAULT ''");
   const keyPath = path.join(dataDir, "ai-encryption.key");
   let encryptionKey;
   function getEncryptionKey() {
@@ -83,6 +85,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
         geminiConfigured: !!(row.gemini_secret || env.GEMINI_API_KEY),
         grokConfigured: !!(row.grok_secret || env.GROK_API_KEY),
         knowledge: JSON.parse(row.knowledge),
+        instructions: row.instructions || '',
         ignoreGroups: true,
         ignoreArchived: true,
         approvedRepliesOnly: true,
@@ -129,6 +132,8 @@ export function createAIConfig(db, dataDir, env = process.env) {
         }
       }
       const knowledge = input.knowledge ?? JSON.parse(row.knowledge);
+      const instructions = String(input.instructions ?? row.instructions ?? '').trim();
+      if (instructions.length > 4000) throw new Error('As instruções devem ter até 4.000 caracteres.');
       if (!Array.isArray(knowledge) || knowledge.length > 60)
         throw new Error("Cadastre até 60 respostas aprovadas.");
       const ids = new Set();
@@ -160,7 +165,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
       });
       db.prepare(
         `UPDATE ai_settings SET provider=?, openai_model=?, gemini_model=?, grok_model=?,
-        grok_secret=?, openai_secret=?, gemini_secret=?, knowledge=? WHERE id=1`,
+        grok_secret=?, openai_secret=?, gemini_secret=?, knowledge=?, instructions=? WHERE id=1`,
       ).run(
         provider,
         models.openai,
@@ -170,6 +175,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
         secrets.openai,
         secrets.gemini,
         JSON.stringify(cleaned),
+        instructions,
       );
       return this.snapshot();
     },

@@ -66,12 +66,15 @@ export async function requestDecision({
   text,
   history = [],
   knowledge = [],
+  instructions: customInstructions = '',
   signal,
   fetchImpl = fetch,
 }) {
   if (!key)
     throw failure('ai_config');
-  const instructions = veterinaryInstructions;
+  const instructions = customInstructions.trim()
+    ? `${veterinaryInstructions}\n\nInstruções personalizadas aprovadas pela clínica:\n${customInstructions.trim()}`
+    : veterinaryInstructions;
   const payload = JSON.stringify({
     catalogo_aprovado: knowledge,
     historico: history

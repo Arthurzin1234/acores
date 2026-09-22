@@ -4,7 +4,7 @@ import { Field } from "./ui.jsx";
 import { api } from "./api.js";
 
 export default function AISettings({ dashboard, busy, run }) {
-  const [form, setForm] = useState({ knowledge: dashboard.ai?.knowledge || [] });
+  const [form, setForm] = useState({ knowledge: dashboard.ai?.knowledge || [], instructions: dashboard.ai?.instructions || "" });
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   function updateFact(id, key, value) {
     update("knowledge", form.knowledge.map((item) => item.id === id ? { ...item, [key]: value } : item));
@@ -33,6 +33,7 @@ export default function AISettings({ dashboard, busy, run }) {
             Adicionar resposta
           </button>
         </div>
+        <div className="ai-personalization"><h2>Personalização da IA</h2><p>Defina o jeito de atender. Essas instruções ficam salvas no servidor e são aplicadas ao provedor ativo.</p><Field label="Como a IA deve atender"><textarea rows={6} maxLength={4000} value={form.instructions} onChange={(e) => update("instructions", e.target.value)} placeholder="Ex.: Seja objetiva, acolhedora e nunca invente preços. Encaminhe cirurgias e emergências para a recepção." /></Field></div>
         {!form.knowledge.length && (
           <p className="knowledge-empty">
             Nenhuma resposta cadastrada. Dúvidas sobre valores, serviços e

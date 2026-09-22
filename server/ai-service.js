@@ -232,6 +232,7 @@ export function createAIService(
             text,
             history,
             knowledge: approvedCatalog(settings, saved.knowledge),
+            instructions: saved.instructions,
           }, signal);
         } catch (error) {
           if (signal?.aborted) throw error;
@@ -241,6 +242,7 @@ export function createAIService(
                 text,
                 history,
                 knowledge: approvedCatalog(settings, saved.knowledge),
+                instructions: saved.instructions,
               }, signal);
             } catch (fallbackError) {
               if (signal?.aborted) throw fallbackError;
