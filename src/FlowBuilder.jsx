@@ -64,7 +64,7 @@ export default function FlowBuilder() {
     setBlocks((items) => [...items, { id, type, title: label, text, x: 24 + (items.length % 3) * 276, y: 190 + Math.floor(items.length / 3) * 150, choices: type === 'condition' || type === 'question' ? 'Sim / Não' : '' }]);
     setSelected(id);
   };
-  const remove = (id) => { setBlocks((items) => items.filter((item) => item.id !== id)); if (selected === id) setSelected(null); setMenu(null); };
+  const remove = (id) => { setBlocks((items) => items.filter((item) => item.id !== id)); setConnections((items) => items.filter((item) => item.from !== id && item.to !== id)); if (selected === id) setSelected(null); if (connectSource === id) setConnectSource(null); setMenu(null); };
   const connect = (id) => { if (!connectSource) { setConnectSource(id); return; } if (connectSource !== id) setConnections((items) => items.some((item) => item.from === connectSource && item.to === id) ? items : [...items, { from: connectSource, to: id }]); setConnectSource(null); };
   const blockCenter = (id, side) => { const item = blocks.find((block) => block.id === id); if (!item) return [0, 0]; return [item.x + (side === 'right' ? 240 : 0), item.y + 54]; };
   const move = (event) => {
