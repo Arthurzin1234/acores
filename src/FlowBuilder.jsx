@@ -44,10 +44,13 @@ export default function FlowBuilder() {
   const [selected, setSelected] = useState(null);
   const [menu, setMenu] = useState(null);
   const [drag, setDrag] = useState(null);
+  const [connectSource, setConnectSource] = useState(null);
+  const [connections, setConnections] = useState(() => { try { return JSON.parse(localStorage.getItem('acores-flow-connections')) || []; } catch { return []; } });
   const canvasRef = useRef(null);
   const selectedBlock = useMemo(() => blocks.find((block) => block.id === selected), [blocks, selected]);
 
   useEffect(() => { localStorage.setItem('acores-flow', JSON.stringify(blocks)); }, [blocks]);
+  useEffect(() => { localStorage.setItem('acores-flow-connections', JSON.stringify(connections)); }, [connections]);
   useEffect(() => {
     const close = () => setMenu(null);
     window.addEventListener('click', close);
@@ -62,6 +65,8 @@ export default function FlowBuilder() {
     setSelected(id);
   };
   const remove = (id) => { setBlocks((items) => items.filter((item) => item.id !== id)); if (selected === id) setSelected(null); setMenu(null); };
+  const connect = (id) => { if (!connectSource) { setConnectSource(id); return; } if (connectSource !== id) setConnections((items) => items.some((item) => item.from === connectSource && item.to === id) ? items : [...items, { from: connectSource, to: id }]); setConnectSource(null); };
+  const blockCenter = (id, side) => { const item = blocks.find((block) => block.id === id); if (!item) return [0, 0]; return [item.x + (side === 'right' ? 240 : 0), item.y + 54]; };
   const move = (event) => {
     if (!drag || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -85,7 +90,8 @@ export default function FlowBuilder() {
     <div className={unlocked ? '' : 'flow-locked-content'} aria-hidden={!unlocked}>
     <div className="flow-toolbar"><div><strong>Fluxo principal</strong><small>Arraste os blocos e clique com o botão direito para editar.</small></div><button className="secondary-button" onClick={() => add('message')}><Plus />Adicionar bloco</button></div>
     <div className="flow-layout"><div ref={canvasRef} className="flow-canvas" onMouseMove={move} onMouseUp={() => setDrag(null)} onMouseLeave={() => setDrag(null)}>
-      {blocks.map((block, index) => { const [, label, Icon, tone] = metadata(block.type); return <button key={block.id} className={`flow-block flow-${tone} ${block.flash ? 'flow-flash' : ''}`} style={{ left: block.x, top: block.y }} onClick={() => setSelected(block.id)} onMouseDown={(event) => { if (event.button === 0) { const rect = event.currentTarget.getBoundingClientRect(); setDrag({ id: block.id, dx: event.clientX - rect.left, dy: event.clientY - rect.top }); } }} onContextMenu={(event) => { event.preventDefault(); setSelected(block.id); setMenu({ id: block.id, x: event.clientX, y: event.clientY }); }}><span className="flow-icon"><Icon /></span><strong>{block.title || label}</strong><small>{block.text}</small>{block.choices && <em>{block.choices}</em>}{index < blocks.length - 1 && <span className="flow-next">Próximo passo <ArrowRight /></span>}</button>; })}
+      <svg className="flow-connections" aria-hidden="true">{connections.map((connection, index) => { const [x1, y1] = blockCenter(connection.from, 'right'); const [x2, y2] = blockCenter(connection.to, 'left'); return <path key={`${connection.from}-${connection.to}-${index}`} d={`M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}`} />; })}</svg>
+      {blocks.map((block) => { const [, label, Icon, tone] = metadata(block.type); return <button key={block.id} className={`flow-block flow-${tone} ${block.flash ? 'flow-flash' : ''} ${connectSource === block.id ? 'flow-connect-source' : ''}`} style={{ left: block.x, top: block.y }} onClick={() => { if (!drag) connect(block.id); setSelected(block.id); }} onDoubleClick={(event) => { event.stopPropagation(); setConnectSource(block.id); }} onMouseDown={(event) => { if (event.button === 0) { const rect = event.currentTarget.getBoundingClientRect(); setDrag({ id: block.id, dx: event.clientX - rect.left, dy: event.clientY - rect.top }); } }} onContextMenu={(event) => { event.preventDefault(); setSelected(block.id); setMenu({ id: block.id, x: event.clientX, y: event.clientY }); }}><span className="flow-icon"><Icon /></span><strong>{block.title || label}</strong><small>{block.text}</small>{block.choices && <em>{block.choices}</em>}</button>; })}
       {!blocks.length && <div className="flow-empty">Adicione um bloco para começar o fluxo.</div>}
       {menu && <div className="flow-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}><button onClick={() => { setSelected(menu.id); setMenu(null); }}><Pencil />Editar</button><button onClick={() => remove(menu.id)}><Trash2 />Excluir</button></div>}
     </div><aside className="flow-palette"><strong>Blocos</strong><small>Adicione etapas ao fluxo</small>{palette.map(([id, label, Icon, tone, help]) => <button key={id} className={`palette-item flow-${tone}`} onClick={() => add(id)}><Icon /><span>{label}</span><small>{help}</small></button>)}</aside></div>
