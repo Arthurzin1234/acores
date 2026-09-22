@@ -37,6 +37,9 @@ const initial = [
 function metadata(type) { return palette.find(([id]) => id === type) || palette[0]; }
 
 export default function FlowBuilder() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('acores-flow-beta') === '1');
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [blocks, setBlocks] = useState(() => { try { return JSON.parse(localStorage.getItem('acores-flow')) || initial; } catch { return initial; } });
   const [selected, setSelected] = useState(null);
   const [menu, setMenu] = useState(null);
@@ -65,8 +68,21 @@ export default function FlowBuilder() {
     update(drag.id, { x: Math.max(8, event.clientX - rect.left - drag.dx), y: Math.max(8, event.clientY - rect.top - drag.dy) });
   };
 
+  const unlock = (event) => {
+    event.preventDefault();
+    if (password === 'arthurph3001') {
+      sessionStorage.setItem('acores-flow-beta', '1');
+      setUnlocked(true);
+      setPasswordError('');
+    } else {
+      setPasswordError('Senha incorreta.');
+    }
+  };
+
   return <section className="flow-builder-page">
-    <PageTitle title="Fluxos de atendimento" subtitle="Monte respostas automáticas aprovadas para o WhatsApp."><button className="primary-button" onClick={() => setBlocks(initial)}><Play />Testar fluxo</button></PageTitle>
+    <PageTitle title="Fluxos de atendimento" subtitle="Área em beta para montar respostas automáticas aprovadas."><span className="beta-badge">BETA</span>{unlocked && <button className="primary-button" onClick={() => setBlocks(initial)}><Play />Testar fluxo</button>}</PageTitle>
+    {!unlocked && <div className="flow-beta-lock"><div><strong>Construtor de fluxos em beta</strong><p>Esta área ainda está em testes. Informe a senha de acesso para visualizar e editar os blocos.</p></div><form onSubmit={unlock}><label>Senha de acesso<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setPasswordError(''); }} autoFocus placeholder="Digite a senha" /></label><button className="primary-button" type="submit">Desbloquear</button>{passwordError && <small className="flow-password-error">{passwordError}</small>}</form></div>}
+    <div className={unlocked ? '' : 'flow-locked-content'} aria-hidden={!unlocked}>
     <div className="flow-toolbar"><div><strong>Fluxo principal</strong><small>Arraste os blocos e clique com o botão direito para editar.</small></div><button className="secondary-button" onClick={() => add('message')}><Plus />Adicionar bloco</button></div>
     <div className="flow-layout"><div ref={canvasRef} className="flow-canvas" onMouseMove={move} onMouseUp={() => setDrag(null)} onMouseLeave={() => setDrag(null)}>
       {blocks.map((block, index) => { const [, label, Icon, tone] = metadata(block.type); return <button key={block.id} className={`flow-block flow-${tone} ${block.flash ? 'flow-flash' : ''}`} style={{ left: block.x, top: block.y }} onClick={() => setSelected(block.id)} onMouseDown={(event) => { if (event.button === 0) { const rect = event.currentTarget.getBoundingClientRect(); setDrag({ id: block.id, dx: event.clientX - rect.left, dy: event.clientY - rect.top }); } }} onContextMenu={(event) => { event.preventDefault(); setSelected(block.id); setMenu({ id: block.id, x: event.clientX, y: event.clientY }); }}><span className="flow-icon"><Icon /></span><strong>{block.title || label}</strong><small>{block.text}</small>{block.choices && <em>{block.choices}</em>}{index < blocks.length - 1 && <span className="flow-next">Próximo passo <ArrowRight /></span>}</button>; })}
@@ -74,5 +90,6 @@ export default function FlowBuilder() {
       {menu && <div className="flow-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}><button onClick={() => { setSelected(menu.id); setMenu(null); }}><Pencil />Editar</button><button onClick={() => remove(menu.id)}><Trash2 />Excluir</button></div>}
     </div><aside className="flow-palette"><strong>Blocos</strong><small>Adicione etapas ao fluxo</small>{palette.map(([id, label, Icon, tone, help]) => <button key={id} className={`palette-item flow-${tone}`} onClick={() => add(id)}><Icon /><span>{label}</span><small>{help}</small></button>)}</aside></div>
     {selectedBlock && <div className="flow-editor"><div className="flow-editor-heading"><strong>Editar bloco</strong><button className="icon-button" title="Fechar edição" onClick={() => setSelected(null)}><X /></button></div><label>Título<input value={selectedBlock.title} onChange={(e) => update(selectedBlock.id, { title: e.target.value })} /></label><label>Quando / instrução<textarea rows="2" value={selectedBlock.text} onChange={(e) => update(selectedBlock.id, { text: e.target.value })} /></label>{(selectedBlock.type === 'condition' || selectedBlock.type === 'question') && <label>Opções de resposta<input value={selectedBlock.choices || ''} onChange={(e) => update(selectedBlock.id, { choices: e.target.value })} placeholder="Sim / Não" /></label>}{selectedBlock.type === 'surgery' && <div className="flow-choice-grid"><label className="flow-toggle"><input type="checkbox" checked={Boolean(selectedBlock.flash)} onChange={(e) => update(selectedBlock.id, { flash: e.target.checked })} /> Piscar alerta</label><label>Segundos<input className="short-input" type="number" min="1" max="60" value={selectedBlock.flashSeconds || 10} onChange={(e) => update(selectedBlock.id, { flashSeconds: Number(e.target.value) })} /></label></div>}<button className="danger-button" onClick={() => remove(selectedBlock.id)}><Trash2 />Excluir bloco</button></div>}
+    </div>
   </section>;
 }
