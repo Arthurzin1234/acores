@@ -1,32 +1,78 @@
-import { useState } from 'react';
-import { ArrowRight, Clock3, GitBranch, MessageCircle, Play, Plus, Send, UserRound, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, Bot, Clock3, GitBranch, MapPin, MessageCircle, Pencil, Play, Plus, Scissors, Send, Trash2, UserRound, X } from 'lucide-react';
 import { PageTitle } from './ui.jsx';
 
 const palette = [
-  ['message', 'Enviar mensagem', MessageCircle, 'purple'],
-  ['question', 'Aguardar resposta', UserRound, 'blue'],
-  ['condition', 'Condição', GitBranch, 'amber'],
-  ['transfer', 'Falar com atendente', Send, 'teal'],
-  ['wait', 'Aguardar tempo', Clock3, 'pink'],
-  ['finish', 'Finalizar', X, 'gray'],
-];
-const initial = [
-  { type: 'message', title: 'Boas-vindas', text: 'Olá! Como podemos ajudar?', x: 24, y: 28 },
-  { type: 'question', title: 'Dados do pet', text: 'Nome, espécie e idade', x: 300, y: 28 },
-  { type: 'transfer', title: 'Recepção', text: 'Encaminhar para atendimento humano', x: 576, y: 28 },
+  ['message', 'Enviar mensagem', MessageCircle, 'purple', 'Responde com um texto aprovado'],
+  ['question', 'Perguntar dados', UserRound, 'blue', 'Nome, espécie, idade ou outro dado'],
+  ['condition', 'Condição', GitBranch, 'amber', 'Divide o fluxo em Sim e Não'],
+  ['surgery', 'Cirurgia', Scissors, 'red', 'Alerta e coleta dados do procedimento'],
+  ['address', 'Endereço', MapPin, 'cyan', 'Envia o endereço e link do Maps'],
+  ['hours', 'Horário', Clock3, 'orange', 'Responde o horário de atendimento'],
+  ['transfer', 'Falar com atendente', Send, 'teal', 'Transfere e pausa a IA'],
+  ['ai', 'Fallback IA', Bot, 'violet', 'Usa a IA se nenhum bloco combinar'],
+  ['wait', 'Aguardar tempo', Clock3, 'pink', 'Espera antes de continuar'],
+  ['finish', 'Finalizar', X, 'gray', 'Encerra o fluxo'],
 ];
 
+const defaults = {
+  message: ['Enviar mensagem', 'Quando receber uma mensagem, responder com:'],
+  question: ['Perguntar dados do pet', 'Qual é o nome, espécie e idade do seu pet?'],
+  condition: ['Condição', 'Se a mensagem contiver:'],
+  surgery: ['Cirurgia / emergência', 'Piscar alerta por 10 segundos e encaminhar para a recepção.'],
+  address: ['Endereço da clínica', 'Se pedirem endereço, enviar o endereço e o link do Maps.'],
+  hours: ['Horário de atendimento', 'Se perguntarem horário, responder com o horário cadastrado.'],
+  transfer: ['Falar com atendente', 'Se pedir atendimento humano, pausar a IA e encaminhar.'],
+  ai: ['Fallback IA', 'Se nenhum bloco combinar, responder usando a IA aprovada.'],
+  wait: ['Aguardar tempo', 'Aguardar 5 segundos antes de responder.'],
+  finish: ['Finalizar', 'Encerrar este fluxo.'],
+};
+
+const initial = [
+  { id: 'welcome', type: 'message', title: 'Boas-vindas', text: 'Olá! Como podemos ajudar?', x: 24, y: 28 },
+  { id: 'pet', type: 'question', title: 'Dados do pet', text: 'Nome, espécie e idade', x: 300, y: 28, choices: 'Sim / Não' },
+  { id: 'reception', type: 'transfer', title: 'Recepção', text: 'Encaminhar para atendimento humano', x: 576, y: 28 },
+];
+
+function metadata(type) { return palette.find(([id]) => id === type) || palette[0]; }
+
 export default function FlowBuilder() {
-  const [blocks, setBlocks] = useState(initial);
+  const [blocks, setBlocks] = useState(() => { try { return JSON.parse(localStorage.getItem('acores-flow')) || initial; } catch { return initial; } });
   const [selected, setSelected] = useState(null);
-  const add = (type) => setBlocks((items) => [...items, { type, title: palette.find(([id]) => id === type)?.[1], text: 'Configure este bloco', x: 24 + (items.length % 3) * 276, y: 180 + Math.floor(items.length / 3) * 150 }]);
+  const [menu, setMenu] = useState(null);
+  const [drag, setDrag] = useState(null);
+  const canvasRef = useRef(null);
+  const selectedBlock = useMemo(() => blocks.find((block) => block.id === selected), [blocks, selected]);
+
+  useEffect(() => { localStorage.setItem('acores-flow', JSON.stringify(blocks)); }, [blocks]);
+  useEffect(() => {
+    const close = () => setMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
+
+  const update = (id, patch) => setBlocks((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
+  const add = (type) => {
+    const [label, text] = defaults[type] || ['Novo bloco', 'Configure este bloco'];
+    const id = `${type}-${Date.now()}`;
+    setBlocks((items) => [...items, { id, type, title: label, text, x: 24 + (items.length % 3) * 276, y: 190 + Math.floor(items.length / 3) * 150, choices: type === 'condition' || type === 'question' ? 'Sim / Não' : '' }]);
+    setSelected(id);
+  };
+  const remove = (id) => { setBlocks((items) => items.filter((item) => item.id !== id)); if (selected === id) setSelected(null); setMenu(null); };
+  const move = (event) => {
+    if (!drag || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    update(drag.id, { x: Math.max(8, event.clientX - rect.left - drag.dx), y: Math.max(8, event.clientY - rect.top - drag.dy) });
+  };
+
   return <section className="flow-builder-page">
     <PageTitle title="Fluxos de atendimento" subtitle="Monte respostas automáticas aprovadas para o WhatsApp."><button className="primary-button" onClick={() => setBlocks(initial)}><Play />Testar fluxo</button></PageTitle>
-    <div className="flow-toolbar"><div><strong>Fluxo principal</strong><small>Alterações salvas neste dispositivo</small></div><button className="secondary-button" onClick={() => add('message')}><Plus />Adicionar bloco</button></div>
-    <div className="flow-layout"><div className="flow-canvas">
-      {blocks.map((block, index) => { const [, label, Icon, tone] = palette.find(([id]) => id === block.type) || palette[0]; return <button key={`${block.type}-${index}`} className={`flow-block flow-${tone}`} style={{ left: block.x, top: block.y }} onClick={() => setSelected(index)}><span className="flow-icon"><Icon /></span><strong>{block.title || label}</strong><small>{block.text}</small>{index < blocks.length - 1 && <ArrowRight className="flow-arrow" />}</button>; })}
+    <div className="flow-toolbar"><div><strong>Fluxo principal</strong><small>Arraste os blocos e clique com o botão direito para editar.</small></div><button className="secondary-button" onClick={() => add('message')}><Plus />Adicionar bloco</button></div>
+    <div className="flow-layout"><div ref={canvasRef} className="flow-canvas" onMouseMove={move} onMouseUp={() => setDrag(null)} onMouseLeave={() => setDrag(null)}>
+      {blocks.map((block, index) => { const [, label, Icon, tone] = metadata(block.type); return <button key={block.id} className={`flow-block flow-${tone} ${block.flash ? 'flow-flash' : ''}`} style={{ left: block.x, top: block.y }} onClick={() => setSelected(block.id)} onMouseDown={(event) => { if (event.button === 0) { const rect = event.currentTarget.getBoundingClientRect(); setDrag({ id: block.id, dx: event.clientX - rect.left, dy: event.clientY - rect.top }); } }} onContextMenu={(event) => { event.preventDefault(); setSelected(block.id); setMenu({ id: block.id, x: event.clientX, y: event.clientY }); }}><span className="flow-icon"><Icon /></span><strong>{block.title || label}</strong><small>{block.text}</small>{block.choices && <em>{block.choices}</em>}{index < blocks.length - 1 && <span className="flow-next">Próximo passo <ArrowRight /></span>}</button>; })}
       {!blocks.length && <div className="flow-empty">Adicione um bloco para começar o fluxo.</div>}
-    </div><aside className="flow-palette"><strong>Blocos</strong><small>Adicione etapas ao fluxo</small>{palette.map(([id, label, Icon, tone]) => <button key={id} className={`palette-item flow-${tone}`} onClick={() => add(id)}><Icon /><span>{label}</span><small>{id === 'condition' ? 'Divide caminhos de atendimento' : 'Adiciona uma etapa ao fluxo'}</small></button>)}</aside></div>
-    {selected !== null && <div className="flow-editor"><strong>Editar bloco</strong><button className="icon-button" title="Fechar edição" onClick={() => setSelected(null)}><X /></button><label>Título<input value={blocks[selected].title} onChange={(e) => setBlocks((items) => items.map((item, i) => i === selected ? { ...item, title: e.target.value } : item))} /></label><label>Conteúdo<textarea rows="3" value={blocks[selected].text} onChange={(e) => setBlocks((items) => items.map((item, i) => i === selected ? { ...item, text: e.target.value } : item))} /></label></div>}
+      {menu && <div className="flow-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}><button onClick={() => { setSelected(menu.id); setMenu(null); }}><Pencil />Editar</button><button onClick={() => remove(menu.id)}><Trash2 />Excluir</button></div>}
+    </div><aside className="flow-palette"><strong>Blocos</strong><small>Adicione etapas ao fluxo</small>{palette.map(([id, label, Icon, tone, help]) => <button key={id} className={`palette-item flow-${tone}`} onClick={() => add(id)}><Icon /><span>{label}</span><small>{help}</small></button>)}</aside></div>
+    {selectedBlock && <div className="flow-editor"><div className="flow-editor-heading"><strong>Editar bloco</strong><button className="icon-button" title="Fechar edição" onClick={() => setSelected(null)}><X /></button></div><label>Título<input value={selectedBlock.title} onChange={(e) => update(selectedBlock.id, { title: e.target.value })} /></label><label>Quando / instrução<textarea rows="2" value={selectedBlock.text} onChange={(e) => update(selectedBlock.id, { text: e.target.value })} /></label>{(selectedBlock.type === 'condition' || selectedBlock.type === 'question') && <label>Opções de resposta<input value={selectedBlock.choices || ''} onChange={(e) => update(selectedBlock.id, { choices: e.target.value })} placeholder="Sim / Não" /></label>}{selectedBlock.type === 'surgery' && <div className="flow-choice-grid"><label className="flow-toggle"><input type="checkbox" checked={Boolean(selectedBlock.flash)} onChange={(e) => update(selectedBlock.id, { flash: e.target.checked })} /> Piscar alerta</label><label>Segundos<input className="short-input" type="number" min="1" max="60" value={selectedBlock.flashSeconds || 10} onChange={(e) => update(selectedBlock.id, { flashSeconds: Number(e.target.value) })} /></label></div>}<button className="danger-button" onClick={() => remove(selectedBlock.id)}><Trash2 />Excluir bloco</button></div>}
   </section>;
 }
