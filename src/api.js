@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
+// Production uses same-origin Vercel rewrites so cookies remain first-party.
+const API_URL = "";
 let csrf = '';
 export const setCSRF = (value) => { csrf = value || ''; };
 const fields = {

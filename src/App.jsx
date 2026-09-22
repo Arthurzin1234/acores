@@ -93,9 +93,13 @@ export default function App() {
         if (!stopped) refresh().catch((err) => setError(err.message));
       }, 15000);
     };
+    if (!import.meta.env.VITE_WS_URL && !import.meta.env.DEV) {
+      scheduleFallback();
+      return () => { stopped = true; clearInterval(fallbackPoll); };
+    }
     function connect() {
       const origin = new URL(
-        import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL || window.location.origin,
+        import.meta.env.VITE_WS_URL || window.location.origin,
       );
       const channel = '/ws';
       socket = new WebSocket(
