@@ -1,5 +1,8 @@
 // Production uses same-origin Vercel rewrites so cookies remain first-party.
-const API_URL = "";
+const API_URL = import.meta.env.VITE_API_URL ||
+  (window.location.hostname === '127.0.0.1' && window.location.port === '5173'
+    ? 'http://127.0.0.1:3333'
+    : '');
 let csrf = '';
 export const setCSRF = (value) => { csrf = value || ''; };
 const fields = {
