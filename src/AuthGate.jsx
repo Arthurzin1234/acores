@@ -107,11 +107,6 @@ export default function AuthGate({ children }) {
       <article className="legal-document"><Markdown components={{ a: ({ node, children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{legal[document].content}</Markdown></article>
     </Modal>}
   </AuthFrame>;
-  if (session.user.must_change_password) return <AuthFrame><h1>Defina sua nova senha</h1>
-    <p className="auth-subtitle">Primeiro acesso · {session.user.company?.name}</p>
-    <PasswordForm busy={busy} error={error} onSave={changePassword} />
-    <button className="text-button auth-back" onClick={logout}><LogOut />Sair</button>
-  </AuthFrame>;
   return <Identity.Provider value={session.user}>
     <div className="account-bar"><span>{session.user.company?.name} · {session.user.username || session.user.email}</span>
       <button className="text-button" onClick={() => { setChanging(true); setError(''); }}><LockKeyhole />Alterar senha</button>

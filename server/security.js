@@ -186,7 +186,6 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
     });
     app.use('/api', (req, res, next) => {
       if (req.path === '/health') return next();
-      if (req.user.must_change_password) return res.status(403).json({ error: 'Troque a senha provisória para continuar.', passwordChangeRequired: true });
       const role = req.user.role;
       const route = req.path;
       const read = req.method === 'GET';
