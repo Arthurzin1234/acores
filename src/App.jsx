@@ -18,7 +18,6 @@ import {
   Search,
   Settings,
   X,
-  Workflow,
 } from "lucide-react";
 import { api } from "./api.js";
 import {
@@ -34,7 +33,6 @@ import {
   NotificationsPage,
 } from "./pages.jsx";
 import { activeTicket } from "./ui.jsx";
-import FlowBuilder from './FlowBuilder.jsx';
 
 const navigation = [
   ["inicio", "Início", House],
@@ -46,7 +44,6 @@ const navigation = [
   ["neonatos", "Neonatos", Baby],
   ["relatorios", "Relatórios", ChartNoAxesCombined],
   ["configuracoes", "Configurações", Settings],
-  ["fluxos", "Fluxos", Workflow],
 ];
 function readRoute() {
   const [path, params] = window.location.hash.replace(/^#\/?/, "").split("?");
@@ -204,7 +201,6 @@ export default function App() {
     relatorios: ReportsPage,
     configuracoes: SettingsPage,
     notificacoes: NotificationsPage,
-    fluxos: FlowBuilder,
   };
   const allowedPage = (id) => (id !== 'configuracoes' || identity.role === 'administrador');
   const Page = allowedPage(route.page) ? pages[route.page] : null;
