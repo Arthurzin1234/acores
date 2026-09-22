@@ -30,8 +30,8 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
   const origins = new Set(production ? [origin, ...configuredOrigins] : [origin, ...configuredOrigins, 'http://127.0.0.1:3333', 'http://localhost:5173']);
   const hosts = new Set([...origins].map((value) => new URL(value).host));
   const cookieName = production ? '__Host-acores_session' : 'acores_session';
-  const ttl = 8 * 60 * 60 * 1000;
-  const idle = 30 * 60 * 1000;
+  const ttl = Number(env.AUTH_SESSION_TTL_MS) || 30 * 24 * 60 * 60 * 1000;
+  const idle = Number(env.AUTH_SESSION_IDLE_MS) || 30 * 24 * 60 * 60 * 1000;
   db.exec(`CREATE TABLE IF NOT EXISTS auth_users (
     id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('usuario','atendente','tecnico','administrador')),
