@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import dns from 'node:dns';
 import pg from 'pg';
 import { sanitizePhone } from './phone.js';
 
 const { Pool } = pg;
+dns.setDefaultResultOrder('ipv4first');
 pg.types.setTypeParser(20, (value) => Number(value));
 const now = () => new Date().toISOString();
 
@@ -25,6 +27,7 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
     connectionString: env.SUPABASE_DB_URL,
     max: Number(env.PG_POOL_MAX || 10),
     connectionTimeoutMillis: 10000,
+    family: 4,
     idleTimeoutMillis: 30000,
     ssl: env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
   });

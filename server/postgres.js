@@ -1,6 +1,8 @@
 import pg from 'pg';
+import dns from 'node:dns';
 
 const { Pool } = pg;
+dns.setDefaultResultOrder('ipv4first');
 
 export function postgresConfigured(env = process.env) {
   return Boolean(env.SUPABASE_DB_URL);
@@ -14,6 +16,7 @@ export function createPostgresPool(env = process.env) {
     max: Number(env.PG_POOL_MAX || 5),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
+    family: 4,
     ssl: env.PG_SSL === 'false' ? false : { rejectUnauthorized: false },
   });
   pool.on('error', () => {});

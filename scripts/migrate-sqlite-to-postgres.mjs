@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import dns from 'node:dns';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import pg from 'pg';
 
 const { Pool } = pg;
+dns.setDefaultResultOrder('ipv4first');
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const sqlitePath = process.env.SQLITE_PATH || path.join(root, 'data', 'petbot.sqlite');
 const connectionString = process.env.SUPABASE_DB_URL;
@@ -25,7 +27,7 @@ const jsonColumns = new Set(['knowledge', 'payload', 'value', 'data']);
 const timestampColumns = new Set(['created_at', 'updated_at', 'read_at', 'accepted_at', 'first_at', 'last_at', 'sent_at', 'checked_at', 'next_check', 'completed_at']);
 const sequenceTables = new Set(['clients', 'tickets', 'messages', 'notifications', 'appointments', 'neonatal_care', 'staff', 'business_records', 'catalog_items', 'security_audit', 'wa_inbox', 'wa_outbox']);
 const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
-const pool = new Pool({ connectionString, ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString, family: 4, ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false } });
 const schemaPath = path.join(root, 'supabase', 'schema.sql');
 
 function columns(table) {
