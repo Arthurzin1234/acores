@@ -19,6 +19,7 @@
     "security:admin": "node --no-warnings=ExperimentalWarning scripts/admin.mjs",
     "backup": "node --no-warnings=ExperimentalWarning scripts/backup.mjs",
     "migrate:postgres": "node --no-warnings=ExperimentalWarning scripts/migrate-sqlite-to-postgres.mjs",
+    "verify:postgres": "node --no-warnings=ExperimentalWarning scripts/verify-supabase.mjs",
     "package:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-vercel.ps1"
   },
   "dependencies": {
