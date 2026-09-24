@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import QRCode from 'qrcode';
+import pino from 'pino';
 import makeWASocket, { DisconnectReason } from '@whiskeysockets/baileys';
 import { classify, disconnectFault, failure, retryDelay } from './reliability.js';
 import { openPostgresAuthStore } from './postgres-whatsapp-auth.js';
@@ -7,6 +8,7 @@ import { openPostgresAuthStore } from './postgres-whatsapp-auth.js';
 const cleanJid = (value) => String(value || '').replace(/:\d+@/, '@');
 const privateJid = (value) => /^\d+@s\.whatsapp\.net$/.test(cleanJid(value));
 const textOf = (message) => (message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || '').trim();
+const logger = pino({ level: 'silent' });
 
 export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onHumanMessage, onDelivery, onAlert, env = process.env }) {
   const account = String(env.WHATSAPP_ACCOUNT || 'acores');
@@ -196,7 +198,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
       const currentGeneration = ++generation;
       try {
         const auth = await authStore.load();
-        const current = makeWASocket({ auth: auth.state, printQRInTerminal: false, syncFullHistory: true, markOnlineOnConnect: false, connectTimeoutMs: 20000, defaultQueryTimeoutMs: 20000 });
+        const current = makeWASocket({ auth: auth.state, logger, printQRInTerminal: false, syncFullHistory: true, markOnlineOnConnect: false, connectTimeoutMs: 20000, defaultQueryTimeoutMs: 20000 });
         socket = current;
         current.ev.on('creds.update', auth.saveCreds);
         current.ev.on('messaging-history.set', async ({ chats }) => { await markArchive(chats); });
@@ -207,7 +209,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
           if (currentGeneration !== generation) return;
           if (qr) setStatus({ mode: 'qr', connected: false, qrDataUrl: await QRCode.toDataURL(qr, { margin: 1, width: 280 }), requiresNewQr: false, lastEvent: 'Escaneie o QR Code para conectar.' });
           if (connection === 'open') { setStatus({ mode: 'connected', connected: true, phone: current.user?.id || null, qrDataUrl: null, attempts: 0, requiresNewQr: false, requiresIntervention: false, offlineSince: null, lastReconnectAt: new Date().toISOString() }); archiveReadyTimer = setTimeout(() => { if (!state.archiveSyncReady && socket === current) { setStatus({ archiveSyncReady: true }); scheduleDrain(0); } }, 15000); archiveReadyTimer.unref?.(); scheduleDrain(0); }
-          if (connection === 'close') { socket = null; generation += 1; clearTimeout(archiveReadyTimer); archiveReadyTimer = null; const code = lastDisconnect?.error?.output?.statusCode, fault = disconnectFault(code); setStatus({ archiveSyncReady: false, connected: false, offlineSince: state.offlineSince || new Date().toISOString(), lastError: { code: fault.code, message: fault.message } }); report(fault); if (code === DisconnectReason.loggedOut || ['invalid_session','forbidden','replaced','mismatch'].includes(fault.code)) setStatus({ mode: 'intervention', requiresNewQr: true, requiresIntervention: true }); else reconnect(); }
+          if (connection === 'close') { socket = null; generation += 1; clearTimeout(archiveReadyTimer); archiveReadyTimer = null; const code = lastDisconnect?.error?.output?.statusCode, fault = disconnectFault(code); setStatus({ archiveSyncReady: false, connected: false, qrDataUrl: null, offlineSince: state.offlineSince || new Date().toISOString(), lastError: { code: fault.code, message: fault.message } }); report(fault); if (code === DisconnectReason.loggedOut || ['invalid_session','forbidden','replaced','mismatch'].includes(fault.code)) setStatus({ mode: 'intervention', requiresNewQr: true, requiresIntervention: true }); else reconnect(); }
         });
         current.ev.on('messages.upsert', async ({ messages, type }) => { if (type !== 'notify' || currentGeneration !== generation) return; for (const message of messages || []) { if (message.key?.fromMe) { if (!(await isAutomaticMessage(message))) await handleHuman(message); } else await enqueue(message); } });
         current.ev.on('messages.update', async (updates) => { for (const { key, update } of updates || []) if (key?.fromMe && Number(update?.status) >= 2) await db.query("update wa_outbox set state='sent',sent_at=$1 where account=$2 and message_id=$3", [Date.now(), account, key.id]); });
