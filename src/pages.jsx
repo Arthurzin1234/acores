@@ -69,12 +69,18 @@ export function MessageText({ text }) {
 
 function DeleteButton({ entity, id, label, warning = "Esta ação não pode ser desfeita.", run, busy, onDeleted }) {
   const identity = useContext(Identity);
+  const [open, setOpen] = useState(false);
   if (identity.role !== 'administrador') return null;
-  return <button className="icon-button" title={`Excluir ${label}`} aria-label={`Excluir ${label}`} disabled={busy}
-    onClick={async () => {
-      if (!window.confirm(`Tem certeza que deseja excluir ${label}?\n${warning}`)) return;
-      if (await run(() => api.deleteRecord(entity, id), "Registro excluído.")) onDeleted?.();
-    }}><Trash2 /></button>;
+  async function remove() {
+    if (await run(() => api.deleteRecord(entity, id), "Registro excluído.")) {
+      setOpen(false);
+      onDeleted?.();
+    }
+  }
+  return <>
+    <button className="delete-action" title={`Excluir ${label}`} aria-label={`Excluir ${label}`} disabled={busy} onClick={() => setOpen(true)}><Trash2 /><span>Excluir</span></button>
+    {open && <div className="delete-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title"><div className="delete-icon"><Trash2 /></div><h2 id="delete-title">Excluir {label}?</h2><p>{warning}</p><div className="delete-actions"><button className="secondary-button" onClick={() => setOpen(false)}>Cancelar</button><button className="delete-confirm" disabled={busy} onClick={remove}><Trash2 />Excluir definitivamente</button></div></div></div>}
+  </>;
 }
 
 export function HomePage(props) {
