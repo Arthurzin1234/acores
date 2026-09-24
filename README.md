@@ -54,9 +54,10 @@ Na instalacao local existente, e-mail `acores@gmail.com` ou usuario `acores`,
 com a senha ja cadastrada. Nenhuma senha existente e redefinida automaticamente.
 
 Em um banco novo, configure `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`
-privadamente no servidor. A senha provisoria deve ter 10 caracteres ou mais,
-ate 72 bytes. O primeiro login exige aceite dos documentos e troca de senha.
-Sem essas variaveis, existe instalacao com token privado de uso unico.
+privadamente no servidor. A senha deve ter 10 caracteres ou mais, ate 72 bytes.
+O primeiro login exige apenas o aceite dos documentos; a senha existente nao e
+redefinida automaticamente. Sem essas variaveis, existe instalacao com token
+privado de uso unico.
 Outros acessos da clinica sao criados pelo administrador em **Acessos**.
 
 ## Verificacao

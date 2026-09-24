@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import { sanitizePhone } from './phone.js';
+export { sanitizePhone } from './phone.js';
 
 const now = () => new Date().toISOString();
 
@@ -421,10 +423,6 @@ export function seedDatabase(store) {
     author: "PetCare IA",
     body: appointmentQuestionnaire("banho e tosa")
   });
-}
-
-export function sanitizePhone(value) {
-  return String(value || "").replace(/\D/g, "");
 }
 
 function normalizeTicket(ticket) {

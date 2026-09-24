@@ -29,7 +29,10 @@ Fontes oficiais usadas para a preparacao:
 - `src/App.jsx` com fallback de atualizacao quando WebSocket nao abre.
 - `src/api.js` preparado para `VITE_API_URL`, embora o caminho recomendado seja
   usar rewrites e manter `/api` na mesma origem do painel.
-- `supabase/schema.sql` com as principais tabelas do sistema em Postgres.
+- `supabase/schema.sql` com as tabelas, relacionamentos, índices e RLS do sistema.
+- Adaptador PostgreSQL em `server/postgres-*.js`; quando `SUPABASE_DB_URL` existe,
+  o backend usa o Supabase como fonte de verdade em vez do SQLite.
+- `scripts/migrate-sqlite-to-postgres.mjs` idempotente para importar o SQLite.
 - `.env.example` com variaveis de Vercel/Supabase.
 - `scripts/package-vercel.ps1` para gerar ZIP de codigo sem `data`, `.env`,
   bancos, chaves, logs ou sessao do WhatsApp.
@@ -51,9 +54,8 @@ Fontes oficiais usadas para a preparacao:
 
 O schema ativa RLS nas tabelas principais sem politicas permissivas. Isso e
 intencional: o painel atual conversa com a API do worker, e a API aplica as
-permissoes ja existentes. A migracao completa do backend para Postgres exige
-um adaptador de banco substituindo `node:sqlite`; isso foi deixado separado
-para nao quebrar o atendimento atual.
+permissoes ja existentes. O worker usa a chave de conexao PostgreSQL no servidor;
+o navegador nao acessa o banco diretamente.
 
 ## Configurar Vercel
 
@@ -81,13 +83,13 @@ rode Node continuamente. Ele precisa:
 
 - manter a sessao do WhatsApp fora do Vercel;
 - ter `APP_ORIGIN` apontando para a URL final do painel no Vercel;
-- receber `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_DB_URL` somente no servidor;
+- receber `SUPABASE_DB_URL` somente no servidor;
 - manter segredos de IA apenas no servidor;
 - suportar WebSocket em `/ws`, ou aceitar que o painel use polling.
 
-Enquanto o adaptador Supabase nao for implementado, o worker continua usando
-SQLite persistente. O schema Supabase ja deixa o banco pronto para a proxima
-etapa, mas nao migra automaticamente dados reais.
+O worker nao depende de um Disk do Render para pacientes, agenda, autenticação,
+fila ou sessão do WhatsApp: esses dados ficam no Supabase. O processo Node ainda
+precisa ser um serviço persistente para manter Baileys, WebSocket e reconexão.
 
 ## Pacote seguro
 
@@ -105,10 +107,12 @@ Ele inclui codigo, docs, `vercel.json` e `supabase/schema.sql`; nao inclui
 
 1. Rodar testes locais.
 2. Criar Supabase e executar `supabase/schema.sql`.
-3. Publicar o worker persistente usando a configuracao atual.
-4. Editar `vercel.json` com a URL real do worker.
-5. Subir o painel no Vercel.
-6. Entrar, trocar senha se necessario, conectar WhatsApp e testar com numero
+3. Com `SUPABASE_DB_URL` configurada e o SQLite disponível, executar:
+   `npm run migrate:postgres`.
+4. Publicar o worker persistente com `SUPABASE_DB_URL` e as variáveis de IA.
+5. Editar `vercel.json` com a URL real do worker.
+6. Subir o painel no Vercel.
+7. Entrar, conectar WhatsApp e testar com numero
    de homologacao.
 
 Nao rode o mesmo numero de WhatsApp em dois ambientes ao mesmo tempo.

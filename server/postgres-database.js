@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
-import { sanitizePhone } from './db.js';
+import { sanitizePhone } from './phone.js';
 
 const { Pool } = pg;
+pg.types.setTypeParser(20, (value) => Number(value));
 const now = () => new Date().toISOString();
 
 function bool(value) {
@@ -78,13 +79,16 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
     async upsertClient(input) {
       const phone = sanitizePhone(input.phone);
       if (!phone) throw new Error('Telefone do cliente e obrigatorio.');
+      const current = await this.getClientByPhone(phone);
       const row = await one(`insert into clients(name, phone, email, pet_name, species, breed, pet_age, pet_weight, notes, created_at, updated_at)
         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
         on conflict(phone) do update set name=excluded.name, email=excluded.email, pet_name=excluded.pet_name,
           species=excluded.species, breed=excluded.breed, pet_age=excluded.pet_age, pet_weight=excluded.pet_weight,
           notes=excluded.notes, updated_at=excluded.updated_at returning *`,
-        [input.name || 'Cliente sem nome', phone, input.email ?? null, input.pet_name ?? null, input.species ?? null,
-          input.breed ?? null, input.pet_age ?? null, input.pet_weight ?? null, input.notes ?? null, now()]);
+        [input.name || current?.name || 'Cliente sem nome', phone, input.email ?? current?.email ?? null,
+          input.pet_name ?? current?.pet_name ?? null, input.species ?? current?.species ?? null,
+          input.breed ?? current?.breed ?? null, input.pet_age ?? current?.pet_age ?? null,
+          input.pet_weight ?? current?.pet_weight ?? null, input.notes ?? current?.notes ?? null, now()]);
       return row;
     },
     async updateClient(id, input) {

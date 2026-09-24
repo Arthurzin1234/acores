@@ -12,6 +12,11 @@ create table if not exists neonatal_care (id bigserial primary key, client_id bi
 create table if not exists clinic_settings (id integer primary key default 1 check (id = 1), name text not null default 'Centro Veterinario dos Acores', unit text not null default 'Clinica Matriz', phone text not null default '', address text not null default 'R. Raul Cabral de Menezes, 467 - Centro, Viamao - RS, 94415-610');
 create table if not exists staff (id bigserial primary key, name text not null, role text not null, phone text not null default '', active boolean not null default true);
 create table if not exists auth_users (id bigserial primary key, email text not null unique, username text unique, password_hash text not null, role text not null check (role in ('usuario','atendente','tecnico','administrador')), client_id bigint references clients(id) on delete set null, active boolean not null default true, platform_admin boolean not null default false, must_change_password boolean not null default false);
+create table if not exists business_records (id bigserial primary key, business text not null, client_id bigint references clients(id) on delete set null, title text not null, stage integer not null default 0, details text not null, notes text not null default '', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+create table if not exists catalog_items (id bigserial primary key, name text not null, description text not null, kind text not null, price_cents integer, active boolean not null default true);
+create table if not exists company_experience (id integer primary key, data jsonb not null default '{}'::jsonb);
+create table if not exists experience_migrations (id text primary key);
+create table if not exists onboarding_profiles (user_id bigint primary key references auth_users(id) on delete cascade, data jsonb not null default '{}'::jsonb, revision integer not null default 0, completed_at timestamptz, updated_at timestamptz not null default now());
 create table if not exists auth_sessions (hash text primary key, user_id bigint not null references auth_users(id) on delete cascade, csrf text not null, created_at bigint not null, expires_at bigint not null, seen_at bigint not null);
 create table if not exists auth_bootstrap (id integer primary key, hash text not null, expires_at bigint not null);
 create table if not exists security_audit (id bigserial primary key, at timestamptz not null default now(), user_id bigint references auth_users(id) on delete set null, event text not null, resource text not null default '');
@@ -43,6 +48,9 @@ create index if not exists idx_notifications_read on notifications(read_at, crea
 create index if not exists idx_appointments_schedule on appointments(scheduled_at);
 create index if not exists idx_wa_jobs_pending on wa_jobs(account, state, next_at);
 create index if not exists idx_wa_outbox_pending on wa_outbox(account, state, seq);
+create index if not exists idx_wa_inbox_account_job on wa_inbox(account, job_id, seq);
+create index if not exists idx_wa_human_inbox_pending on wa_human_inbox(account, done);
+create index if not exists idx_whatsapp_auth_generation on whatsapp_auth(account, generation);
 create index if not exists idx_conversation_memory_phone on conversation_memory(phone, created_at);
 
 insert into clinic_settings(id) values (1) on conflict (id) do nothing;

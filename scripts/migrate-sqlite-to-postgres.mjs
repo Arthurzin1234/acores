@@ -14,16 +14,16 @@ if (!fs.existsSync(sqlitePath)) throw new Error(`Banco SQLite nao encontrado: ${
 const tables = [
   'clients', 'tickets', 'messages', 'notifications', 'appointments',
   'checklist_items', 'neonatal_care', 'clinic_settings', 'auth_users',
-  'staff',
+  'staff', 'business_records', 'catalog_items', 'company_experience', 'experience_migrations', 'onboarding_profiles',
   'auth_sessions', 'auth_bootstrap', 'security_audit', 'auth_legal_versions', 'auth_legal_acceptance',
   'ai_settings', 'operational_alerts', 'service_health', 'wa_inbox', 'wa_jobs',
   'wa_outbox', 'wa_runtime', 'wa_human_inbox', 'whatsapp_sent_ids', 'whatsapp_human_pause',
   'whatsapp_human_seen', 'whatsapp_chat_policy', 'whatsapp_processed_messages', 'whatsapp_chat_alias',
 ];
 const booleanColumns = new Set(['human_required', 'ai_paused', 'active', 'platform_admin', 'must_change_password', 'checked', 'automatic', 'archived']);
-const jsonColumns = new Set(['knowledge', 'payload', 'value']);
-const timestampColumns = new Set(['created_at', 'updated_at', 'read_at', 'accepted_at', 'first_at', 'last_at', 'sent_at', 'checked_at', 'next_check']);
-const sequenceTables = new Set(['clients', 'tickets', 'messages', 'notifications', 'appointments', 'neonatal_care', 'staff', 'security_audit', 'wa_inbox', 'wa_outbox']);
+const jsonColumns = new Set(['knowledge', 'payload', 'value', 'data']);
+const timestampColumns = new Set(['created_at', 'updated_at', 'read_at', 'accepted_at', 'first_at', 'last_at', 'sent_at', 'checked_at', 'next_check', 'completed_at']);
+const sequenceTables = new Set(['clients', 'tickets', 'messages', 'notifications', 'appointments', 'neonatal_care', 'staff', 'business_records', 'catalog_items', 'security_audit', 'wa_inbox', 'wa_outbox']);
 const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
 const pool = new Pool({ connectionString, ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false } });
 const schemaPath = path.join(root, 'supabase', 'schema.sql');
