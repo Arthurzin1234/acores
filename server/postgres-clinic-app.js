@@ -63,7 +63,11 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   app.post('/api/ai/test/:provider', async (req, res) => { try { res.json(await ai.test(req.params.provider)); } catch (error) { res.status(400).json({ error: error.message || 'Não foi possível testar a IA.' }); } });
   app.post('/api/notifications/read', async (_req, res) => res.json(await db.markNotificationsRead()));
   app.get('/api/whatsapp/status', async (_req, res) => res.json(await whatsapp.snapshot()));
-  app.post('/api/whatsapp/start', async (_req, res) => res.json(await whatsapp.start()));
+  app.post('/api/whatsapp/start', async (_req, res) => {
+    const status = await whatsapp.start();
+    if (status.mode === 'intervention' && status.lastError) return res.status(status.requiresNewQr ? 409 : 503).json({ error: status.lastError.message, code: status.lastError.code });
+    res.json(status);
+  });
   app.post('/api/whatsapp/sync', async (_req, res) => res.json(await whatsapp.snapshot()));
   app.post('/api/whatsapp/relink', async (req, res) => { const status = await whatsapp.snapshot(); if (req.body?.confirmed !== true || !status.requiresNewQr) return res.status(400).json({ error: 'Confirme a substituição da sessão inválida.' }); res.json(await whatsapp.start({ newSession: true })); });
   app.get('/api/operations/status', async (_req, res) => { const wa = await whatsapp.snapshot(); res.json({ checkedAt: new Date().toISOString(), process: true, database: true, ai: ai.snapshot(), whatsapp: wa, queue: wa.queue, alerts: [] }); });

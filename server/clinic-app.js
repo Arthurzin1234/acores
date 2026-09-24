@@ -253,6 +253,7 @@ app.get("/api/whatsapp/status", (_req, res) => {
 
 app.post("/api/whatsapp/start", async (_req, res) => {
   const status = await whatsapp.start({ manual: true });
+  if (status.mode === 'intervention' && status.lastError) return res.status(status.requiresNewQr ? 409 : 503).json({ error: status.lastError.message, code: status.lastError.code });
   res.json(status);
 });
 app.post("/api/whatsapp/sync", async (_req, res) => {
