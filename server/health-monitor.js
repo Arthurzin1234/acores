@@ -57,9 +57,9 @@ export function createHealthMonitor({ db, whatsapp, ai, aiConfig, dataDir, broad
       whatsapp.spool?.replay((account, message) => whatsapp.queue.receive(account, message));
       if (whatsapp.status.lastError?.code === 'database_busy' && whatsapp.status.requiresIntervention !== true && !whatsapp.socket)
         whatsapp.scheduleReconnect();
-      const settings = aiConfig.snapshot();
+      const settings = await aiConfig.snapshot();
       let aiCredentials = settings.provider === 'rules';
-      try { if (!aiCredentials) { const c = aiConfig.credentials(settings.provider); aiCredentials = !!c.key && /^[\w.-]{1,100}$/.test(c.model); } }
+      try { if (!aiCredentials) { const c = await aiConfig.credentials(settings.provider); aiCredentials = !!c.key && /^[\w.-]{1,100}$/.test(c.model); } }
       catch { aiCredentials = false; }
       let session = null;
       try { session = whatsapp.authStore ? whatsapp.authStore.check() : null; } catch { session = false; }

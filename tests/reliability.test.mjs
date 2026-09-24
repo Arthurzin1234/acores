@@ -190,7 +190,7 @@ test('AI authentication errors are not retried automatically', async () => {
 test('health checks detect downtime, missing credentials, queue and AI failures without exposing context', async () => {
   const directory = temp(), db = new DatabaseSync(':memory:'); const bot = connected(db);
   const ai = { snapshot: () => ({ provider: 'gemini', available: false }), health: async () => {} };
-  const aiConfig = { snapshot: () => ({ provider: 'gemini' }), credentials: () => ({ key: '', model: 'model' }) };
+  const aiConfig = { snapshot: async () => ({ provider: 'gemini' }), credentials: async () => ({ key: '', model: 'model' }) };
   const monitor = createHealthMonitor({ db, whatsapp: bot, ai, aiConfig, dataDir: directory });
   try {
     bot.status.connected = false; bot.status.offlineSince = new Date(Date.now() - 300000).toISOString();
@@ -203,4 +203,21 @@ test('health checks detect downtime, missing credentials, queue and AI failures 
     assert.equal(monitor.snapshot().database, true);
     assert.ok(!fs.readFileSync(path.join(directory, 'runtime-health.json'), 'utf8').includes(jid));
   } finally { monitor.stop(); await bot.stop(); db.close(); fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('health monitor awaits async Supabase AI credentials', async () => {
+  const directory = temp(), db = new DatabaseSync(':memory:'), bot = connected(db);
+  const ai = { snapshot: () => ({ provider: 'gemini', available: true }), health: async () => {} };
+  const aiConfig = { snapshot: async () => ({ provider: 'gemini' }), credentials: async () => ({ key: 'test-only-key', model: 'model' }) };
+  const previousNodeEnv = process.env.NODE_ENV, previousOrigin = process.env.APP_ORIGIN;
+  process.env.NODE_ENV = 'production'; process.env.APP_ORIGIN = 'http://invalid-origin';
+  const monitor = createHealthMonitor({ db, whatsapp: bot, ai, aiConfig, dataDir: directory });
+  try {
+    await monitor.check({ probeAI: false });
+    assert.equal(monitor.snapshot().credentials.aiConfigured, true);
+  } finally {
+    monitor.stop(); await bot.stop(); db.close(); fs.rmSync(directory, { recursive: true, force: true });
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousNodeEnv;
+    if (previousOrigin === undefined) delete process.env.APP_ORIGIN; else process.env.APP_ORIGIN = previousOrigin;
+  }
 });

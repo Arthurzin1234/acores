@@ -53,7 +53,7 @@ export function OperationsPage({ dashboard: d, run, busy }) {
         {wa.connected && <button className="secondary-button" disabled={busy} onClick={() => run(() => api.syncWhatsApp(), 'Verificação solicitada.')}>
           <ShieldCheck /> Sincronizar conversas
         </button>}
-        {health.ai?.available === false && ['gemini', 'openai'].includes(health.ai.provider) &&
+        {health.ai?.available === false && ['gemini', 'openai', 'grok'].includes(health.ai.provider) &&
           <button className="secondary-button" disabled={busy} onClick={() => run(() => api.testAI(health.ai.provider), 'Assistente disponível. As conversas transferidas continuam com a recepção.')}>
             <Bot /> Verificar assistente
           </button>}
