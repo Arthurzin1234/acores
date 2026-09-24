@@ -16,7 +16,7 @@ const appointment = z.object({ client_id: id, service: z.enum(['consulta','cirur
   scheduled_at: date, professional: text(120), status: z.enum(['aguardando','confirmado','em_preparo','concluido','cancelado']), notes: text(4000) }).strict();
 const neonatal = z.object({ client_id: id, status: z.enum(['estavel','observacao','alta']), notes: text(4000), next_check: z.union([date,z.literal('')]) }).strict();
 const settings = z.object({ name: text(150).min(1).optional(), unit: text(120).min(1).optional(), phone: text(25).optional(), address: text(300).optional() }).strict();
-const knowledge = z.object({ knowledge: z.array(z.object({ id: text(80).regex(/^[\w-]+$/), question: text(300).min(1), answer: text(2000).min(1) }).strict()).max(60) }).strict();
+const knowledge = z.object({ knowledge: z.array(z.object({ id: text(80).regex(/^[\w-]+$/), question: text(300).min(1), answer: text(2000).min(1) }).strict()).max(60), instructions: text(4000).optional() }).strict();
 export function validateRequests(req, res, next) {
   const path = req.path;
   if (path === '/health') return next();
