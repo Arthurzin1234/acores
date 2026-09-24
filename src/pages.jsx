@@ -1822,13 +1822,15 @@ export function SettingsPage(props) {
             className="primary-button"
             onClick={() =>
               run(
-                () => api.startWhatsApp(),
-                "Conexão iniciada. Aguarde o QR Code.",
+                () => status.requiresNewQr ? api.relinkWhatsApp() : api.startWhatsApp(),
+                (result) => result?.qrDataUrl ? "QR Code pronto. Escaneie pelo WhatsApp." : "Conexão solicitada. Aguarde o QR Code.",
               )
             }
           >
             <QrCode />
-            {status.connected
+            {status.requiresNewQr
+              ? "Gerar novo QR Code"
+              : status.connected
               ? "WhatsApp conectado"
               : status.mode === "qr"
                 ? "Atualizar conexão"

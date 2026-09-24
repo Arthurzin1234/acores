@@ -191,13 +191,15 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
 
   async function start({ newSession = false } = {}) {
     if (starting) return starting;
-    if (socket || stopping) return snapshot();
+    if (socket || stopping || (state.requiresNewQr && !newSession)) return snapshot();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     starting = (async () => {
       if (newSession) { await authStore.newSession(); setStatus({ requiresNewQr: false, qrDataUrl: null, attempts: 0 }); }
       const currentGeneration = ++generation;
+      let authLoaded = false;
       try {
         const auth = await authStore.load();
+        authLoaded = true;
         const current = makeWASocket({ auth: auth.state, logger, printQRInTerminal: false, syncFullHistory: true, markOnlineOnConnect: false, connectTimeoutMs: 20000, defaultQueryTimeoutMs: 20000 });
         socket = current;
         current.ev.on('creds.update', auth.saveCreds);
@@ -213,7 +215,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
         });
         current.ev.on('messages.upsert', async ({ messages, type }) => { if (type !== 'notify' || currentGeneration !== generation) return; for (const message of messages || []) { if (message.key?.fromMe) { if (!(await isAutomaticMessage(message))) await handleHuman(message); } else await enqueue(message); } });
         current.ev.on('messages.update', async (updates) => { for (const { key, update } of updates || []) if (key?.fromMe && Number(update?.status) >= 2) await db.query("update wa_outbox set state='sent',sent_at=$1 where account=$2 and message_id=$3", [Date.now(), account, key.id]); });
-      } catch (error) { socket = null; clearTimeout(archiveReadyTimer); archiveReadyTimer = null; const fault = classify(error); setStatus({ mode: 'intervention', connected: false, archiveSyncReady: false }); report(fault); }
+      } catch (error) { socket = null; clearTimeout(archiveReadyTimer); archiveReadyTimer = null; const fault = authLoaded ? classify(error) : failure('credentials_storage'); setStatus({ mode: 'intervention', connected: false, archiveSyncReady: false, requiresNewQr: !authLoaded, requiresIntervention: true }); report(fault); }
       return snapshot();
     })().finally(() => { starting = null; });
     return starting;
