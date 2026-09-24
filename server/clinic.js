@@ -94,12 +94,11 @@ export function createClinicStore(db) {
     let ticket = db.prepare("SELECT id FROM tickets WHERE client_id = ? AND category = 'cirurgia' AND status NOT IN ('resolvido','cancelado') ORDER BY id DESC LIMIT 1").get(client.id);
     if (!ticket) {
       const now = new Date().toISOString();
-      const result = db.prepare(`INSERT INTO tickets
+      db.prepare(`INSERT INTO tickets
         (client_id, phone, subject, category, status, priority, human_required, source, created_at, updated_at)
         VALUES (?, ?, ?, 'cirurgia', 'novo', 'alta', 1, 'painel', ?, ?)`).run(
         client.id, client.phone, `Checklist de cirurgia${client.pet_name ? ` - ${client.pet_name}` : ''}`, now, now,
       );
-      ticket = { id: Number(result.lastInsertRowid) };
     }
   }
 

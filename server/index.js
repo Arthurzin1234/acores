@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClinicApp } from './clinic-app.js';
+import { createPostgresClinicApp } from './postgres-clinic-app.js';
 import { resolveRuntime } from './runtime.js';
 import { safeLog } from './reliability.js';
 
@@ -33,7 +34,11 @@ if (runtime.render && !fs.existsSync(runtime.persistentRoot)) {
 }
 process.env.APP_ORIGIN = runtime.origin;
 process.env.TRUST_PROXY = runtime.trustProxy;
-const clinic = createClinicApp({rootDir,dataDir:runtime.dataDir,authDir:runtime.authDir});
+// Supabase is the production source of truth. SQLite remains available only
+// when SUPABASE_DB_URL is absent, which keeps local tests and offline dev safe.
+const clinic = process.env.SUPABASE_DB_URL
+  ? await createPostgresClinicApp({ rootDir, dataDir: runtime.dataDir, authDir: runtime.authDir })
+  : createClinicApp({rootDir,dataDir:runtime.dataDir,authDir:runtime.authDir});
 const server = http.createServer(clinic.app);
 server.on('upgrade',(req,socket,head) => {
   if(req.url==='/ws/acores')req.url='/ws';

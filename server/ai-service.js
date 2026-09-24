@@ -157,7 +157,7 @@ export function createAIService(
   const probeInterval = positiveInt(process.env.AI_HEALTH_INTERVAL_MS, 300000, 30000);
   async function request(provider, input, signal, force = false) {
     let credentials;
-    try { credentials = config.credentials(provider); } catch {
+    try { credentials = await config.credentials(provider); } catch {
       runtime = { provider, available: false, lastError: failure('ai_config').message, errorCode: 'ai_config', classification: 'intervention', lastUsedAt: new Date(now()).toISOString() };
       blockedUntil = Infinity; throw failure('ai_config');
     }
@@ -189,17 +189,17 @@ export function createAIService(
       throw failure(fault.code);
     } finally { clearTimeout(timer); combined.removeEventListener('abort', abort); }
   }
-  const unavailable = () => ({ category: 'geral', subject: 'IA indisponível', priority: 'alta',
+  const unavailable = async () => ({ category: 'geral', subject: 'IA indisponível', priority: 'alta',
     humanRequired: true, handoffComplete: true, aiUnavailable: true, summary: 'IA indisponível',
-    reply: AI_UNAVAILABLE_REPLY, aiProvider: config.snapshot().provider });
+    reply: AI_UNAVAILABLE_REPLY, aiProvider: (await config.snapshot()).provider });
   return {
     snapshot: () => ({ ...runtime, checks: { ...checks } }),
     resetChecks() {
       checks = {}; blockedUntil = 0;
     },
     async analyze(text, history = [], signal) {
-      const saved = config.snapshot();
-      const settings = getSettings();
+      const saved = await config.snapshot();
+      const settings = await getSettings();
       const rule = analyzeMessage(text);
       let decision = {
         intent: "other",
@@ -236,7 +236,7 @@ export function createAIService(
           }, signal);
         } catch (error) {
           if (signal?.aborted) throw error;
-          if (saved.provider === 'gemini' && config.snapshot().grokConfigured) {
+          if (saved.provider === 'gemini' && (await config.snapshot()).grokConfigured) {
             try {
               decision = await request('grok', {
                 text,
@@ -273,14 +273,14 @@ export function createAIService(
         ...renderDecision(decision, {
           text,
           history,
-          settings: getSettings(),
-          knowledge: config.snapshot().knowledge,
+          settings: await getSettings(),
+          knowledge: saved.knowledge,
         }),
         aiProvider: runtime.provider,
       };
     },
     async health() {
-      const provider = config.snapshot().provider;
+      const provider = (await config.snapshot()).provider;
       if (provider === 'rules') { runtime = { ...runtime, available: true, provider: 'rules', lastError: null }; return runtime; }
       if (checking) return checking;
       if (now() < blockedUntil || (runtime.lastUsedAt && now() - Date.parse(runtime.lastUsedAt) < probeInterval)) return runtime;
@@ -290,7 +290,7 @@ export function createAIService(
       return runtime;
     },
     async test(provider) {
-      const credentials = config.credentials(provider);
+      const credentials = await config.credentials(provider);
       try {
         await request(provider, {
           text: "Olá",

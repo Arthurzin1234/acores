@@ -10,12 +10,13 @@ create table if not exists appointments (id bigserial primary key, client_id big
 create table if not exists checklist_items (ticket_id bigint not null references tickets(id) on delete cascade, item_key text not null, checked boolean not null default false, updated_at timestamptz not null default now(), primary key (ticket_id, item_key));
 create table if not exists neonatal_care (id bigserial primary key, client_id bigint not null unique references clients(id) on delete cascade, status text not null default 'observacao', notes text not null default '', next_check timestamptz, updated_at timestamptz not null default now());
 create table if not exists clinic_settings (id integer primary key default 1 check (id = 1), name text not null default 'Centro Veterinario dos Acores', unit text not null default 'Clinica Matriz', phone text not null default '', address text not null default 'R. Raul Cabral de Menezes, 467 - Centro, Viamao - RS, 94415-610');
+create table if not exists staff (id bigserial primary key, name text not null, role text not null, phone text not null default '', active boolean not null default true);
 create table if not exists auth_users (id bigserial primary key, email text not null unique, username text unique, password_hash text not null, role text not null check (role in ('usuario','atendente','tecnico','administrador')), client_id bigint references clients(id) on delete set null, active boolean not null default true, platform_admin boolean not null default false, must_change_password boolean not null default false);
 create table if not exists auth_sessions (hash text primary key, user_id bigint not null references auth_users(id) on delete cascade, csrf text not null, created_at bigint not null, expires_at bigint not null, seen_at bigint not null);
 create table if not exists auth_bootstrap (id integer primary key, hash text not null, expires_at bigint not null);
 create table if not exists security_audit (id bigserial primary key, at timestamptz not null default now(), user_id bigint references auth_users(id) on delete set null, event text not null, resource text not null default '');
 create table if not exists auth_legal_versions (version text primary key, terms_content text not null, privacy_content text not null, published_at timestamptz not null default now());
-create table if not exists auth_legal_acceptance (user_id bigint not null references auth_users(id) on delete cascade, version text not null references auth_legal_versions(version), accepted_at timestamptz not null default now(), primary key(user_id, version));
+create table if not exists auth_legal_acceptance (user_id bigint not null references auth_users(id) on delete cascade, version text not null references auth_legal_versions(version), terms_version text not null default '', privacy_version text not null default '', accepted_at timestamptz not null default now(), primary key(user_id, version));
 create table if not exists ai_settings (id integer primary key default 1 check (id = 1), provider text not null default 'rules', openai_model text not null default 'gpt-4.1-mini', gemini_model text not null default 'gemini-3.1-flash-lite', grok_model text not null default 'grok-3-mini', openai_secret text, gemini_secret text, grok_secret text, knowledge jsonb not null default '[]'::jsonb, instructions text not null default '');
 create table if not exists operational_alerts (code text primary key, message text not null, classification text not null, first_at timestamptz not null default now(), last_at timestamptz not null default now(), count integer not null default 0, active boolean not null default true);
 create table if not exists service_health (id integer primary key, checked_at timestamptz);
@@ -31,6 +32,8 @@ create table if not exists whatsapp_human_seen (account text not null, id text n
 create table if not exists whatsapp_chat_policy (account text not null, jid text not null, archived boolean not null default false, primary key(account, jid));
 create table if not exists whatsapp_processed_messages (account text not null, jid text not null, message_id text not null, created_at timestamptz not null default now(), primary key(account, jid, message_id));
 create table if not exists whatsapp_chat_alias (account text not null, first_jid text not null, second_jid text not null, primary key(account, first_jid, second_jid));
+create table if not exists whatsapp_auth_meta (account text primary key, generation integer not null default 1);
+create table if not exists whatsapp_auth (account text not null, generation integer not null, name text not null, value jsonb not null, primary key(account, generation, name));
 create table if not exists conversation_memory (id bigserial primary key, phone text not null, direction text not null check (direction in ('inbound','outbound')), author text not null, body text not null, created_at timestamptz not null default now());
 
 create index if not exists idx_tickets_status_priority on tickets(status, priority);
@@ -45,6 +48,8 @@ create index if not exists idx_conversation_memory_phone on conversation_memory(
 insert into clinic_settings(id) values (1) on conflict (id) do nothing;
 insert into ai_settings(id) values (1) on conflict (id) do nothing;
 alter table ai_settings add column if not exists instructions text not null default '';
+alter table auth_legal_acceptance add column if not exists terms_version text not null default '';
+alter table auth_legal_acceptance add column if not exists privacy_version text not null default '';
 alter table clients enable row level security;
 alter table tickets enable row level security;
 alter table messages enable row level security;

@@ -9,10 +9,6 @@ services:
     healthCheckPath: /api/health
     maxShutdownDelaySeconds: 30
     autoDeployTrigger: off
-    disk:
-      name: acores-persistent
-      mountPath: /var/data/acores
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -25,18 +21,22 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://acores-five.vercel.app
       - key: PERSISTENT_ROOT
-        value: /var/data/acores
+        value: /tmp/acores
       - key: ALLOW_EPHEMERAL_STORAGE
         value: "true"
       - key: DATA_DIR
-        value: /var/data/acores/data
+        value: /tmp/acores/data
       - key: WHATSAPP_AUTH_DIR
-        value: /var/data/acores/whatsapp
+        value: /tmp/acores/whatsapp
       - key: INITIAL_ADMIN_EMAIL
         value: acores@gmail.com
       - key: INITIAL_ADMIN_USERNAME
         value: admin123
       - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: AI_ENCRYPTION_KEY
         sync: false
       - key: AI_PROVIDER
         value: gemini

@@ -14,6 +14,21 @@ para esse worker persistente; veja [RENDER.md](docs/RENDER.md).
 Banco, chaves, conversas e sessao WhatsApp nao fazem parte do codigo nem do
 pacote de publicacao.
 
+## Supabase PostgreSQL
+
+O backend seleciona o armazenamento PostgreSQL quando `SUPABASE_DB_URL` está
+configurada. Execute `npm run verify:postgres` para criar/verificar o schema e
+`npm run migrate:postgres` para importar o SQLite existente de forma idempotente.
+Depois da importação, reinicie o serviço: as tabelas clínicas, autenticação,
+configurações de IA, notificações e filas passam a usar o Supabase. O URL direto
+do Postgres, `SUPABASE_SERVICE_ROLE_KEY` e `AI_ENCRYPTION_KEY` são segredos do
+servidor e não devem ser colocados no Vercel como variáveis `VITE_*`.
+
+Variáveis mínimas no Render: `SUPABASE_DB_URL`, `INITIAL_ADMIN_EMAIL`,
+`INITIAL_ADMIN_PASSWORD`, `INITIAL_ADMIN_USERNAME`, `APP_ORIGIN` e as chaves da
+IA escolhida. `SUPABASE_URL` e `SUPABASE_ANON_KEY` podem continuar configuradas
+para integrações, mas o backend usa a conexão direta `SUPABASE_DB_URL`.
+
 ## Desenvolvimento local
 
 Use Node 24 LTS:
@@ -39,7 +54,7 @@ Na instalacao local existente, e-mail `acores@gmail.com` ou usuario `acores`,
 com a senha ja cadastrada. Nenhuma senha existente e redefinida automaticamente.
 
 Em um banco novo, configure `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD`
-privadamente no servidor. A senha provisoria deve ter 12 caracteres ou mais,
+privadamente no servidor. A senha provisoria deve ter 10 caracteres ou mais,
 ate 72 bytes. O primeiro login exige aceite dos documentos e troca de senha.
 Sem essas variaveis, existe instalacao com token privado de uso unico.
 Outros acessos da clinica sao criados pelo administrador em **Acessos**.
