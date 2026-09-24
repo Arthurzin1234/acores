@@ -14,10 +14,12 @@ if (!fs.existsSync(sqlitePath)) throw new Error(`Banco SQLite nao encontrado: ${
 const tables = [
   'clients', 'tickets', 'messages', 'notifications', 'appointments',
   'checklist_items', 'neonatal_care', 'clinic_settings', 'auth_users',
-  'auth_sessions', 'security_audit', 'ai_settings', 'wa_inbox', 'wa_jobs',
-  'wa_outbox', 'wa_runtime', 'wa_human_inbox',
+  'auth_sessions', 'auth_bootstrap', 'security_audit', 'auth_legal_versions', 'auth_legal_acceptance',
+  'ai_settings', 'operational_alerts', 'service_health', 'wa_inbox', 'wa_jobs',
+  'wa_outbox', 'wa_runtime', 'wa_human_inbox', 'whatsapp_sent_ids', 'whatsapp_human_pause',
+  'whatsapp_human_seen', 'whatsapp_chat_policy', 'whatsapp_processed_messages', 'whatsapp_chat_alias',
 ];
-const booleanColumns = new Set(['human_required', 'ai_paused', 'active', 'platform_admin', 'must_change_password', 'checked', 'read_at']);
+const booleanColumns = new Set(['human_required', 'ai_paused', 'active', 'platform_admin', 'must_change_password', 'checked', 'automatic', 'archived']);
 const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
 const pool = new Pool({ connectionString, ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false } });
 const schemaPath = path.join(root, 'supabase', 'schema.sql');
