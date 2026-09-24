@@ -17,8 +17,10 @@ const tables = [
   'auth_sessions', 'security_audit', 'ai_settings', 'wa_inbox', 'wa_jobs',
   'wa_outbox', 'wa_runtime', 'wa_human_inbox',
 ];
+const booleanColumns = new Set(['human_required', 'ai_paused', 'active', 'platform_admin', 'must_change_password', 'checked', 'read_at']);
 const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
 const pool = new Pool({ connectionString, ssl: process.env.PG_SSL === 'false' ? false : { rejectUnauthorized: false } });
+const schemaPath = path.join(root, 'supabase', 'schema.sql');
 
 function columns(table) {
   return sqlite.prepare(`PRAGMA table_info(${table})`).all().map((item) => item.name);
@@ -27,6 +29,9 @@ function columns(table) {
 async function main() {
   const client = await pool.connect();
   try {
+    if (!fs.existsSync(schemaPath)) throw new Error(`Schema PostgreSQL nao encontrado: ${schemaPath}`);
+    await client.query(fs.readFileSync(schemaPath, 'utf8'));
+    process.stdout.write('Schema PostgreSQL verificado.\n');
     await client.query('BEGIN');
     for (const table of tables) {
       const available = columns(table);
@@ -35,7 +40,11 @@ async function main() {
       if (!rows.length) continue;
       for (const row of rows) {
         const names = available.filter((name) => row[name] !== undefined);
-        const values = names.map((name) => row[name] === undefined ? null : row[name]);
+        const values = names.map((name) => {
+          if (row[name] === undefined) return null;
+          if (booleanColumns.has(name)) return name === 'read_at' ? (row[name] ? new Date(row[name]) : null) : Boolean(Number(row[name]));
+          return row[name];
+        });
         const placeholders = names.map((_, index) => `$${index + 1}`).join(',');
         await client.query(
           `INSERT INTO ${table} (${names.join(',')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
