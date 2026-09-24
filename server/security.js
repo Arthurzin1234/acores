@@ -97,6 +97,7 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
   const apiUser = limiter(240, 60000, (req) => String(req.user.id));
   const sensitive = limiter(10, 60000, (req) => String(req.user.id));
   const dummyHash = bcrypt.hashSync(token(), 12);
+  const flowPasswordHash = env.FLOW_ACCESS_PASSWORD ? bcrypt.hashSync(env.FLOW_ACCESS_PASSWORD, 12) : null;
 
   function install(app) {
     app.disable('x-powered-by');
@@ -204,8 +205,13 @@ export function createSecurity(db, dataDir, env = process.env, company = { id: '
         if (!owned) return res.status(404).json({ error: 'Registro não encontrado.' });
       }
       if (!read) res.on('finish', () => audit(req.user.id, `${req.method}:${res.statusCode}`, route));
-      if (technical || req.method === 'DELETE' || route.startsWith('/ai/') || (route.startsWith('/users') && !read)) return sensitive(req, res, next);
+      if (technical || route === '/flow/unlock' || req.method === 'DELETE' || route.startsWith('/ai/') || (route.startsWith('/users') && !read)) return sensitive(req, res, next);
       next();
+    });
+    app.post('/api/flow/unlock', (req, res) => {
+      if (!flowPasswordHash) return res.status(503).json({ error: 'Acesso beta não configurado no servidor.' });
+      if (!bcrypt.compareSync(String(req.body?.password || ''), flowPasswordHash)) return res.status(401).json({ error: 'Senha incorreta.' });
+      audit(req.user.id, 'flow_unlocked'); res.json({ unlocked: true });
     });
   }
   function view(data, user) {

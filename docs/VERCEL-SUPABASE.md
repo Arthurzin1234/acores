@@ -50,12 +50,16 @@ Fontes oficiais usadas para a preparacao:
    Neste painel, ela nao deve acessar tabelas diretamente.
 5. A chave `service_role` fica apenas no worker Node persistente. Nunca use
    `VITE_SUPABASE_SERVICE_ROLE_KEY` nem coloque essa chave no Vercel como
-   variavel exposta ao cliente.
+   variavel exposta ao cliente. Mantenha `AI_ENCRYPTION_KEY` e
+   `WHATSAPP_AUTH_ENCRYPTION_KEY` somente no worker do Render e estáveis entre
+   deploys.
 
 O schema ativa RLS nas tabelas principais sem politicas permissivas. Isso e
 intencional: o painel atual conversa com a API do worker, e a API aplica as
 permissoes ja existentes. O worker usa a chave de conexao PostgreSQL no servidor;
-o navegador nao acessa o banco diretamente.
+o navegador nao acessa o banco diretamente. O schema tambem ativa RLS em todas
+as tabelas publicas internas, sem politicas anon permissivas, incluindo sessoes,
+filas, memoria, configuracoes da IA e credenciais criptografadas do WhatsApp.
 
 ## Configurar Vercel
 

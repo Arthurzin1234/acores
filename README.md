@@ -25,9 +25,13 @@ do Postgres, `SUPABASE_SERVICE_ROLE_KEY` e `AI_ENCRYPTION_KEY` são segredos do
 servidor e não devem ser colocados no Vercel como variáveis `VITE_*`.
 
 Variáveis mínimas no Render: `SUPABASE_DB_URL`, `INITIAL_ADMIN_EMAIL`,
-`INITIAL_ADMIN_PASSWORD`, `INITIAL_ADMIN_USERNAME`, `APP_ORIGIN` e as chaves da
-IA escolhida. `SUPABASE_URL` e `SUPABASE_ANON_KEY` podem continuar configuradas
+`INITIAL_ADMIN_PASSWORD`, `INITIAL_ADMIN_USERNAME`, `FLOW_ACCESS_PASSWORD`,
+`APP_ORIGIN`, `AI_ENCRYPTION_KEY`, `WHATSAPP_AUTH_ENCRYPTION_KEY` e as chaves da IA escolhida. `SUPABASE_URL` e `SUPABASE_ANON_KEY` podem continuar configuradas
 para integrações, mas o backend usa a conexão direta `SUPABASE_DB_URL`.
+
+`AI_ENCRYPTION_KEY` e `WHATSAPP_AUTH_ENCRYPTION_KEY` devem ser valores secretos
+estáveis, gerados fora do repositório. Eles protegem, respectivamente, as chaves
+da IA e as credenciais persistentes do WhatsApp no Supabase.
 
 ## Desenvolvimento local
 

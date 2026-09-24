@@ -41,6 +41,7 @@ export const api = {
   session: () => request('/api/auth/session'),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   setup: (body) => request('/api/auth/setup', { method: 'POST', body: JSON.stringify(body) }),
+  unlockFlow: (password) => request('/api/flow/unlock', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   changePassword: (body) => request('/api/auth/password', { method: 'POST', body: JSON.stringify(body) }),
   whatsappStatus: () => request('/api/whatsapp/status'),

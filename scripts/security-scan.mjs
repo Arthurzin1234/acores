@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 const root = process.cwd(), findings = [];
-const secret = /(?:sk-(?:proj-)?[a-zA-Z0-9_-]{24,}|AIza[\w-]{30,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/g;
+const secret = /(?:sk-(?:proj-)?[a-zA-Z0-9_-]{24,}|gsk_[a-zA-Z0-9_-]{20,}|AIza[\w-]{30,}|AQ\.[A-Za-z0-9_-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/g;
 function scan(dir) {
   for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
     if (['node_modules','.git','server/auth','.sites-runtime'].includes(item.name) || (dir.endsWith('server') && item.name === 'auth')) continue;

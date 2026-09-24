@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Bot, Clock3, GitBranch, MapPin, MessageCircle, Pencil, Play, Plus, Scissors, Send, Trash2, UserRound, X } from 'lucide-react';
 import { PageTitle } from './ui.jsx';
+import { api } from './api.js';
 
 const palette = [
   ['trigger-message', 'Mensagem recebida', MessageCircle, 'green', 'Inicia quando chegar uma mensagem'],
@@ -69,7 +70,7 @@ const initial = [
 function metadata(type) { return palette.find(([id]) => id === type) || palette[0]; }
 
 export default function FlowBuilder() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('acores-flow-beta') === '1');
+  const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [blocks, setBlocks] = useState(() => { try { return JSON.parse(localStorage.getItem('acores-flow')) || initial; } catch { return initial; } });
@@ -105,15 +106,13 @@ export default function FlowBuilder() {
     update(drag.id, { x: Math.max(8, event.clientX - rect.left - drag.dx), y: Math.max(8, event.clientY - rect.top - drag.dy) });
   };
 
-  const unlock = (event) => {
+  const unlock = async (event) => {
     event.preventDefault();
-    if (password === 'arthurph3001') {
-      sessionStorage.setItem('acores-flow-beta', '1');
+    try {
+      await api.unlockFlow(password);
       setUnlocked(true);
       setPasswordError('');
-    } else {
-      setPasswordError('Senha incorreta.');
-    }
+    } catch (error) { setPasswordError(error.message || 'Senha incorreta.'); }
   };
 
   return <section className="flow-builder-page">

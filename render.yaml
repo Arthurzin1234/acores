@@ -38,6 +38,8 @@ services:
         sync: false
       - key: AI_ENCRYPTION_KEY
         sync: false
+      - key: WHATSAPP_AUTH_ENCRYPTION_KEY
+        sync: false
       - key: AI_PROVIDER
         value: gemini
       - key: GEMINI_API_KEY
@@ -48,6 +50,8 @@ services:
         value: grok-3-mini
       - key: WHATSAPP_AUTOSTART
         value: "true"
+      - key: FLOW_ACCESS_PASSWORD
+        sync: false
       - key: ENABLE_SIMULATOR
         value: "false"
       - key: SEED_DEMO
