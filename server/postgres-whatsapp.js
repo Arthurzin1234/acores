@@ -6,7 +6,7 @@ import { classify, disconnectFault, failure, retryDelay } from './reliability.js
 import { openPostgresAuthStore } from './postgres-whatsapp-auth.js';
 
 const cleanJid = (value) => String(value || '').replace(/:\d+@/, '@');
-const privateJid = (value) => /^\d+@s\.whatsapp\.net$/.test(cleanJid(value));
+const privateJid = (value) => /^\d+@(s\.whatsapp\.net|lid)$/.test(cleanJid(value));
 const textOf = (message) => (message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || '').trim();
 const logger = pino({ level: 'silent' });
 
@@ -27,6 +27,16 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
 
   const setStatus = (value) => Object.assign(state, value, { updatedAt: new Date().toISOString() });
   const report = (fault) => { state.lastError = { code: fault.code, message: fault.message, classification: fault.classification }; onAlert?.(fault); };
+  async function resolveJid(value, alternate) {
+    const jid = cleanJid(value), alt = cleanJid(alternate);
+    if (!jid.endsWith('@lid')) return jid;
+    if (/^\d+@s\.whatsapp\.net$/.test(alt)) return alt;
+    try {
+      const mapped = await socket?.signalRepository?.lidMapping?.getPNForLID(jid);
+      if (/^\d+@s\.whatsapp\.net$/.test(cleanJid(mapped))) return cleanJid(mapped);
+    } catch { /* Keep the LID when Baileys has not loaded its mapping yet. */ }
+    return jid;
+  }
 
   async function policyFor(jid) {
     const normalized = cleanJid(jid);
@@ -76,7 +86,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
   }
 
   async function enqueue(raw) {
-    const jid = cleanJid(raw?.key?.remoteJid);
+    const jid = await resolveJid(raw?.key?.remoteJid, raw?.key?.remoteJidAlt);
     if (!raw?.key?.id || !privateJid(jid)) return null;
     const body = textOf(raw);
     if (!body) return null;
@@ -98,7 +108,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
   }
 
   async function handleHuman(raw) {
-    const jid = cleanJid(raw?.key?.remoteJid), id = String(raw?.key?.id || '');
+    const jid = await resolveJid(raw?.key?.remoteJid, raw?.key?.remoteJidAlt), id = String(raw?.key?.id || '');
     if (!privateJid(jid) || !id) return;
     await db.query(`insert into wa_human_inbox(account,message_id,payload,done) values($1,$2,$3::jsonb,0) on conflict(account,message_id) do nothing`, [account, id, JSON.stringify(raw)]);
     await db.query('insert into whatsapp_human_pause(account,jid) values($1,$2) on conflict do nothing', [account, jid]);
@@ -108,7 +118,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
   }
 
   async function isAutomaticMessage(raw) {
-    const jid = cleanJid(raw?.key?.remoteJid), body = textOf(raw);
+    const jid = await resolveJid(raw?.key?.remoteJid, raw?.key?.remoteJidAlt), body = textOf(raw);
     if (!jid || !body) return false;
     const exact = await db.one('select 1 from wa_outbox where account=$1 and jid=$2 and automatic=true and state in (\'sent\',\'sending\') and (message_id=$3 or (body=$4 and sent_at>$5)) limit 1', [account, jid, raw.key.id, body, Date.now() - 60000]);
     return !!exact;
