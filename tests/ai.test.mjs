@@ -169,6 +169,29 @@ test("OpenAI and Gemini use official endpoints and constrained schemas", async (
   }
 });
 
+test("GroqCloud keys use the Groq endpoint and a supported model", async () => {
+  const result = await requestDecision({
+    provider: "grok",
+    key: "gsk_test-private-key",
+    model: "grok-3-mini",
+    text: "Oii",
+    knowledge,
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      assert.equal(url, "https://api.groq.com/openai/v1/chat/completions");
+      assert.equal(body.model, "openai/gpt-oss-120b");
+      assert.equal(body.response_format.type, "json_object");
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: JSON.stringify({ intent: "greeting", answerId: "", question: "need", needsHuman: false }) } }],
+        }),
+      };
+    },
+  });
+  assert.equal(result.intent, "greeting");
+});
+
 test("invented answer ids and model-written text never become customer replies", async () => {
   const context = { text: "Qual o valor?", settings: {}, knowledge };
   assert.equal(renderDecision(decision, context).reply, knowledge[0].answer);

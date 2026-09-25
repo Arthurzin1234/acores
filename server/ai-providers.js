@@ -123,10 +123,16 @@ export async function requestDecision({
       },
     };
   } else if (provider === "grok") {
-    url = "https://api.x.ai/v1/chat/completions";
+    const groqCloudKey = key.startsWith("gsk_");
+    const groqModel = groqCloudKey && /^grok-/i.test(model)
+      ? "openai/gpt-oss-120b"
+      : model;
+    url = groqCloudKey
+      ? "https://api.groq.com/openai/v1/chat/completions"
+      : "https://api.x.ai/v1/chat/completions";
     headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
     body = {
-      model,
+      model: groqModel,
       temperature: 0,
       max_tokens: 700,
       messages: [
