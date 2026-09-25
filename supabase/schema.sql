@@ -55,6 +55,8 @@ create index if not exists idx_conversation_memory_phone on conversation_memory(
 
 insert into clinic_settings(id) values (1) on conflict (id) do nothing;
 insert into ai_settings(id) values (1) on conflict (id) do nothing;
+alter table messages add column if not exists external_id text;
+create unique index if not exists idx_messages_external_id on messages(external_id) where external_id is not null;
 alter table ai_settings add column if not exists instructions text not null default '';
 alter table auth_legal_acceptance add column if not exists terms_version text not null default '';
 alter table auth_legal_acceptance add column if not exists privacy_version text not null default '';

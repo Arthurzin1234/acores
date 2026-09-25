@@ -128,7 +128,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
       const messages = Array.isArray(claimed.payload) ? claimed.payload : JSON.parse(claimed.payload);
       const last = messages.at(-1), jid = cleanJid(claimed.jid);
       if (await blocked(jid)) { await db.query("update wa_jobs set state='ignored',error=null where id=$1", [claimed.id]); return; }
-      const result = await onMessage({ phone: jid.split('@')[0], name: last.pushName || null, text: messages.map((m) => textOf(m)).filter(Boolean).join('\n'), source: 'whatsapp' });
+      const result = await onMessage({ phone: jid.split('@')[0], name: last.pushName || null, text: messages.map((m) => textOf(m)).filter(Boolean).join('\n'), source: 'whatsapp', messageId: claimed.id });
       if (result?.reply && !(await blocked(jid))) {
         await db.query(`insert into wa_outbox(id,account,jid,body,automatic,ticket_id,message_id,created_at)
           values($1,$2,$3,$4,true,$5,$6,$7) on conflict(id) do nothing`, [claimed.id, account, jid, result.reply, result.ticket?.id || null, `out:${claimed.id}`, Date.now()]);

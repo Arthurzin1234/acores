@@ -136,10 +136,14 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
     },
     async addMessage(ticketId, input) {
       const timestamp = now();
-      const row = await one(`insert into messages(ticket_id,direction,author,body,created_at) values ($1,$2,$3,$4,$5) returning *`,
-        [ticketId, input.direction, input.author || (input.direction === 'inbound' ? 'Cliente' : 'PetCare IA'), input.body, timestamp]);
+      const inserted = await one(`insert into messages(ticket_id,direction,author,body,created_at,external_id)
+        values ($1,$2,$3,$4,$5,$6)
+        on conflict (external_id) where external_id is not null do nothing returning *`,
+        [ticketId, input.direction, input.author || (input.direction === 'inbound' ? 'Cliente' : 'PetCare IA'), input.body, timestamp, input.externalId || null]);
+      const row = inserted || (input.externalId ? await one('select * from messages where external_id=$1', [input.externalId]) : null);
+      if (!row) throw new Error('Não foi possível registrar a mensagem.');
       await query('update tickets set updated_at=$1 where id=$2', [timestamp, ticketId]);
-      return row;
+      return { ...row, inserted: !!inserted };
     },
     async listMessages(ticketId) { return many('select * from messages where ticket_id=$1 order by created_at asc,id asc', [ticketId]); },
     async createNotification(input) {

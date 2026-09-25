@@ -27,17 +27,25 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   app.use(express.json({ limit: '64kb', strict: true }));
   security.routes(app);
   app.use('/api', (req, res, next) => { if (['/health', '/legal'].includes(req.path) || req.path.startsWith('/auth/')) return next(); if (!req.user) return res.status(401).json({ error: 'Entre para continuar.' }); next(); });
-  const processIncoming = async ({ phone, name, text, source }) => {
+  const processIncoming = async ({ phone, name, text, source, messageId }) => {
     const existing = await db.getClientByPhone(phone);
     const active = await db.findActiveTicket(phone);
     const history = active ? await db.listMessages(active.id) : [];
-    const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     const intake = collectPatient(text, history, existing || {});
-    const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
     const client = await db.upsertClient({ phone, name: existing?.name || name, ...intake.patch });
-    const ticket = active ? await db.updateTicket(active.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority, human_required: active.human_required || analysis.humanRequired, ai_summary: analysis.summary }) : await db.createTicket({ client_id: client.id, phone, subject: analysis.subject, category: analysis.category, priority: analysis.priority, human_required: analysis.humanRequired, ai_summary: analysis.summary, source });
-    await db.addMessage(ticket.id, { direction: 'inbound', author: client.name, body: text });
-    await conversationMemory.append(phone, { direction: 'inbound', author: client.name, body: text }).catch(() => {});
+    let ticket = active || await db.createTicket({ client_id: client.id, phone, subject: 'Novo atendimento', category: 'geral', priority: 'normal', source });
+    const inboundMessage = await db.addMessage(ticket.id, { direction: 'inbound', author: client.name, body: text, externalId: messageId ? `whatsapp:${messageId}` : null });
+    if (inboundMessage.inserted !== false)
+      await conversationMemory.append(phone, { direction: 'inbound', author: client.name, body: text }).catch(() => {});
+    broadcast();
+    if (active?.status === 'em_atendimento' || active?.ai_paused)
+      return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
+    const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
+    const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
+    ticket = await db.updateTicket(ticket.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority,
+      status: analysis.handoffComplete ? 'em_atendimento' : ticket.status, human_required: ticket.human_required || analysis.humanRequired,
+      ai_paused: ticket.ai_paused || !!analysis.handoffComplete, ai_summary: analysis.summary });
+    broadcast();
     const message = source === 'whatsapp' ? null : await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: analysis.reply });
     if (analysis.humanRequired) await db.createNotification({ ticket_id: ticket.id, ...buildHumanNotification(client, ticket), ...(analysis.aiUnavailable ? { title: 'IA indisponível', level: 'warning' } : {}) });
     if (analysis.reply) await conversationMemory.append(phone, { direction: 'outbound', author: 'Açores IA', body: analysis.reply }).catch(() => {});
