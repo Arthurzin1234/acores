@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { createAIConfig } from "../server/ai-config.js";
 import { requestDecision } from "../server/ai-providers.js";
-import { createAIService, decorateReply, renderDecision } from "../server/ai-service.js";
+import { createAIService, decorateReply, isGreeting, renderDecision } from "../server/ai-service.js";
 delete process.env.OPENAI_API_KEY;
 delete process.env.GEMINI_API_KEY;
 
@@ -14,6 +14,17 @@ test("replies include restrained pet-care emojis", () => {
   assert.match(decorateReply("Olá! Como posso ajudar?", "geral"), /🐶/u);
   assert.match(decorateReply("Vou encaminhar à recepção.", "cirurgia"), /🐾/u);
   assert.equal(decorateReply("Já usei 🐾", "geral"), "Já usei 🐾");
+});
+
+test("repeated greetings stay greetings even when the provider misclassifies them", () => {
+  assert.equal(isGreeting("Oii"), true);
+  assert.equal(isGreeting("Olaaa!!!"), true);
+  const result = renderDecision(
+    { intent: "human", question: "tutor", needsHuman: true },
+    { text: "Oii", settings: {} },
+  );
+  assert.equal(result.humanRequired, false);
+  assert.match(result.reply, /assistente virtual/);
 });
 
 const decision = {

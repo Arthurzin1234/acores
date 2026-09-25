@@ -29,6 +29,12 @@ const normalized = (value) =>
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
+export function isGreeting(value) {
+  return /^(?:o+i+|ol+a+|bom dia|boa tarde|boa noite|obrigad[oa])[!.?\s]*$/u.test(
+    normalized(value).trim(),
+  );
+}
+
 export function approvedCatalog(settings, knowledge) {
   const items = knowledge.map((item) => ({ ...item }));
   if (settings.address?.trim())
@@ -66,6 +72,14 @@ export function renderDecision(
   if (medical && !["surgery", "emergency"].includes(intent)) intent = "human";
   if (/emergencia|urgencia|atropel|convuls|envenen|nao respira|sem respirar|dor intensa/.test(normalized(text)))
     intent = "emergency";
+  if (
+    isGreeting(text) &&
+    !rule.humanRequired &&
+    !medical
+  ) {
+    intent = "greeting";
+    decision = { ...decision, needsHuman: false };
+  }
   const catalog = approvedCatalog(settings, knowledge);
   const question = QUESTIONS[decision.question];
   const announced = history.some((m) => m.direction === "outbound" &&
@@ -221,11 +235,7 @@ export function createAIService(
           : "human";
       else if (["consulta", "banho_tosa"].includes(rule.category))
         decision = { ...decision, intent: "appointment", needsHuman: false };
-      else if (
-        /^(oi|ola|bom dia|boa tarde|boa noite|obrigad[oa])[!.?\s]*$/.test(
-          normalized(text),
-        )
-      )
+      else if (isGreeting(text))
         decision = {
           ...decision,
           intent: "greeting",
