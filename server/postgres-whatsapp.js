@@ -7,7 +7,23 @@ import { openPostgresAuthStore } from './postgres-whatsapp-auth.js';
 
 const cleanJid = (value) => String(value || '').replace(/:\d+@/, '@');
 const privateJid = (value) => /^\d+@(s\.whatsapp\.net|lid)$/.test(cleanJid(value));
-const textOf = (message) => (message?.conversation || message?.extendedTextMessage?.text || message?.imageMessage?.caption || message?.videoMessage?.caption || '').trim();
+const unwrapMessage = (value) => {
+  let message = value?.message || value;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const nested = message?.ephemeralMessage?.message || message?.viewOnceMessage?.message ||
+      message?.viewOnceMessageV2?.message || message?.documentWithCaptionMessage?.message;
+    if (!nested) break;
+    message = nested;
+  }
+  return message || {};
+};
+export const extractText = (value) => {
+  const message = unwrapMessage(value);
+  return (message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption ||
+    message.videoMessage?.caption || message.buttonsResponseMessage?.selectedDisplayText ||
+    message.listResponseMessage?.title || '').trim();
+};
+const textOf = extractText;
 const logger = pino({ level: 'silent' });
 
 export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onHumanMessage, onDelivery, onAlert, env = process.env }) {

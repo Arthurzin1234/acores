@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { ReplyPolicy } from "../server/reply-policy.js";
 import { WhatsAppConnector } from "../server/whatsapp.js";
+import { extractText } from "../server/postgres-whatsapp.js";
 
 const jid = "5511998887766@s.whatsapp.net";
 const account = "5511000000000@s.whatsapp.net";
@@ -10,6 +11,11 @@ const message = (id) => ({
   key: { remoteJid: jid, id, fromMe: false },
   messageTimestamp: Math.floor(Date.now() / 1000),
   message: { conversation: "Olá" },
+});
+
+test("Postgres WhatsApp adapter extracts the real Baileys message payload", () => {
+  assert.equal(extractText({ message: { conversation: "Olá" } }), "Olá");
+  assert.equal(extractText({ message: { ephemeralMessage: { message: { extendedTextMessage: { text: "Mensagem encapsulada" } } } } }), "Mensagem encapsulada");
 });
 
 test("human intervention blocks an in-flight reply; bot echoes do not pause", async () => {
