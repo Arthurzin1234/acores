@@ -1084,7 +1084,7 @@ function ClientModal({ initial, busy, onSave, onClose }) {
           label="WhatsApp"
           required
           type="tel"
-          pattern="[-+()0-9 .]{8,22}"
+          pattern={"[+()0-9 .\\-]{8,22}"}
           placeholder="55 51 99999-9999"
           value={form.phone}
           onChange={update("phone")}
