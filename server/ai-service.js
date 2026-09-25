@@ -169,7 +169,7 @@ export function createAIService(
   config,
   getSettings,
   providerRequest = requestDecision,
-  { timeoutMs = positiveInt(process.env.AI_TIMEOUT_MS, 3500, 100, 60000), now = Date.now } = {},
+  { timeoutMs = positiveInt(process.env.AI_TIMEOUT_MS, 5000, 100, 60000), now = Date.now } = {},
 ) {
   let runtime = { provider: "rules", available: null, lastError: null, lastUsedAt: null };
   let checks = {};

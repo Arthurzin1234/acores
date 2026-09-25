@@ -46,6 +46,8 @@ services:
         sync: false
       - key: GROK_API_KEY
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
       - key: GROK_MODEL
         value: grok-3-mini
       - key: WHATSAPP_AUTOSTART
@@ -53,7 +55,7 @@ services:
       - key: WHATSAPP_RESPONSE_DELAY_MS
         value: "1000"
       - key: AI_TIMEOUT_MS
-        value: "3500"
+        value: "5000"
       - key: FLOW_ACCESS_PASSWORD
         sync: false
       - key: ENABLE_SIMULATOR

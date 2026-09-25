@@ -83,7 +83,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
         grokModel: env.GROK_MODEL || row.grok_model,
         openaiConfigured: !!(row.openai_secret || env.OPENAI_API_KEY),
         geminiConfigured: !!(row.gemini_secret || env.GEMINI_API_KEY),
-        grokConfigured: !!(row.grok_secret || env.GROK_API_KEY),
+        grokConfigured: !!(row.grok_secret || env.GROK_API_KEY || env.GROQ_API_KEY),
         knowledge: JSON.parse(row.knowledge),
         instructions: row.instructions || '',
         ignoreGroups: true,
@@ -100,7 +100,7 @@ export function createAIConfig(db, dataDir, env = process.env) {
         key:
           env[
           provider === "openai" ? "OPENAI_API_KEY" : provider === "gemini" ? "GEMINI_API_KEY" : "GROK_API_KEY"
-          ] || decrypt(row[`${provider}_secret`]) ||
+          ] || (provider === "grok" ? env.GROQ_API_KEY : "") || decrypt(row[`${provider}_secret`]) ||
           "",
       };
     },
