@@ -85,7 +85,7 @@ export async function requestDecision({
       })),
     mensagem_atual: text.slice(0, 6000),
   });
-  const timeout = AbortSignal.timeout(positiveInt(process.env.AI_TIMEOUT_MS, 12000, 100, 60000));
+  const timeout = AbortSignal.timeout(positiveInt(process.env.AI_TIMEOUT_MS, 3500, 100, 60000));
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let url, body, headers;
   if (provider === "openai") {
@@ -116,7 +116,7 @@ export async function requestDecision({
       systemInstruction: { parts: [{ text: instructions }] },
       contents: [{ role: "user", parts: [{ text: payload }] }],
       generationConfig: {
-        maxOutputTokens: 2048,
+        maxOutputTokens: 512,
         responseMimeType: "application/json",
         responseJsonSchema: decisionSchema,
       },

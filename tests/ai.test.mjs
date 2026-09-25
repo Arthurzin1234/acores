@@ -6,9 +6,15 @@ import os from "node:os";
 import path from "node:path";
 import { createAIConfig } from "../server/ai-config.js";
 import { requestDecision } from "../server/ai-providers.js";
-import { createAIService, renderDecision } from "../server/ai-service.js";
+import { createAIService, decorateReply, renderDecision } from "../server/ai-service.js";
 delete process.env.OPENAI_API_KEY;
 delete process.env.GEMINI_API_KEY;
+
+test("replies include restrained pet-care emojis", () => {
+  assert.match(decorateReply("Olá! Como posso ajudar?", "geral"), /🐶/u);
+  assert.match(decorateReply("Vou encaminhar à recepção.", "cirurgia"), /🐾/u);
+  assert.equal(decorateReply("Já usei 🐾", "geral"), "Já usei 🐾");
+});
 
 const decision = {
   intent: "information",

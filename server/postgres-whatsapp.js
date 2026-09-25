@@ -29,6 +29,7 @@ const logger = pino({ level: 'silent' });
 export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onHumanMessage, onDelivery, onAlert, env = process.env }) {
   const account = String(env.WHATSAPP_ACCOUNT || 'acores');
   const maxAttempts = Math.max(1, Number(env.WHATSAPP_MAX_RECONNECTS || 6));
+  const responseDelayMs = Math.max(0, Math.min(10000, Number(env.WHATSAPP_RESPONSE_DELAY_MS || 1000)));
   const authStore = await openPostgresAuthStore(db, account, env);
   const state = { mode: 'offline', connected: false, phone: null, attempts: 0, requiresNewQr: false, qrDataUrl: null, lastError: null, archiveSyncReady: false, offlineSince: new Date().toISOString(), updatedAt: new Date().toISOString() };
   const archived = new Map();
@@ -113,13 +114,13 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
       const pending = await client.query(`select id,payload from wa_jobs where account=$1 and jid=$2 and state='pending' order by created_at desc limit 1 for update`, [account, jid]);
       const jobId = pending.rows[0]?.id || `inbound:${account}:${String(raw.key.id)}`;
       const payload = pending.rows[0] ? [...(Array.isArray(pending.rows[0].payload) ? pending.rows[0].payload : JSON.parse(pending.rows[0].payload)), raw] : [raw];
-      if (pending.rows[0]) await client.query('update wa_jobs set payload=$1::jsonb,next_at=$2 where id=$3', [JSON.stringify(payload), Date.now() + 5000, jobId]);
+      if (pending.rows[0]) await client.query('update wa_jobs set payload=$1::jsonb,next_at=$2 where id=$3', [JSON.stringify(payload), Date.now() + responseDelayMs, jobId]);
       else await client.query(`insert into wa_jobs(id,account,jid,payload,state,attempts,next_at,created_at)
-        values($1,$2,$3,$4::jsonb,'pending',0,$5,$6)`, [jobId, account, jid, JSON.stringify(payload), Date.now() + 5000, Date.now()]);
+        values($1,$2,$3,$4::jsonb,'pending',0,$5,$6)`, [jobId, account, jid, JSON.stringify(payload), Date.now() + responseDelayMs, Date.now()]);
       await client.query('update wa_inbox set job_id=$1 where account=$2 and message_id=$3', [jobId, account, String(raw.key.id)]);
       return jobId;
     });
-    if (result) { if (drainTimer) { clearTimeout(drainTimer); drainTimer = null; } scheduleDrain(5000); }
+    if (result) { if (drainTimer) { clearTimeout(drainTimer); drainTimer = null; } scheduleDrain(responseDelayMs); }
     return result;
   }
 

@@ -50,6 +50,10 @@ services:
         value: grok-3-mini
       - key: WHATSAPP_AUTOSTART
         value: "true"
+      - key: WHATSAPP_RESPONSE_DELAY_MS
+        value: "1000"
+      - key: AI_TIMEOUT_MS
+        value: "3500"
       - key: FLOW_ACCESS_PASSWORD
         sync: false
       - key: ENABLE_SIMULATOR

@@ -5,6 +5,12 @@ import { classify, failure, positiveInt, safeLog } from './reliability.js';
 
 export const AI_UNAVAILABLE_REPLY = 'Olá! No momento vou chamar um atendente humano para continuar seu atendimento 😉';
 
+export function decorateReply(reply, category) {
+  if (!reply || /🐶|🐾/u.test(reply)) return reply;
+  const emoji = category === 'urgencia' ? '🚨 🐾' : category === 'cirurgia' ? '🐾' : '🐶';
+  return `${reply} ${emoji}`;
+}
+
 export const QUESTIONS = {
   tutor: "Qual é o nome do tutor?",
   pet: "Qual é o nome do seu pet?",
@@ -149,7 +155,7 @@ export function createAIService(
   config,
   getSettings,
   providerRequest = requestDecision,
-  { timeoutMs = positiveInt(process.env.AI_TIMEOUT_MS, 12000, 100, 60000), now = Date.now } = {},
+  { timeoutMs = positiveInt(process.env.AI_TIMEOUT_MS, 3500, 100, 60000), now = Date.now } = {},
 ) {
   let runtime = { provider: "rules", available: null, lastError: null, lastUsedAt: null };
   let checks = {};
@@ -269,13 +275,15 @@ export function createAIService(
             needsHuman: false,
           };
       }
-      return {
-        ...renderDecision(decision, {
+      const rendered = renderDecision(decision, {
           text,
           history,
           settings: await getSettings(),
           knowledge: saved.knowledge,
-        }),
+        });
+      return {
+        ...rendered,
+        reply: decorateReply(rendered.reply, rendered.category),
         aiProvider: runtime.provider,
       };
     },
