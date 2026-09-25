@@ -27,7 +27,7 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   app.use(express.json({ limit: '64kb', strict: true }));
   security.routes(app);
   app.use('/api', (req, res, next) => { if (['/health', '/legal'].includes(req.path) || req.path.startsWith('/auth/')) return next(); if (!req.user) return res.status(401).json({ error: 'Entre para continuar.' }); next(); });
-  const processIncoming = async ({ phone, name, text, source, messageId }) => {
+  const processIncoming = async ({ phone, name, text, source, messageId, suppressReply = false }) => {
     const existing = await db.getClientByPhone(phone);
     const active = await db.findActiveTicket(phone);
     const history = active ? await db.listMessages(active.id) : [];
@@ -38,7 +38,7 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     if (inboundMessage.inserted !== false)
       await conversationMemory.append(phone, { direction: 'inbound', author: client.name, body: text }).catch(() => {});
     broadcast();
-    if (active?.status === 'em_atendimento' || active?.ai_paused)
+    if (suppressReply || active?.status === 'em_atendimento' || active?.ai_paused)
       return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
