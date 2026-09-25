@@ -19,6 +19,10 @@ test("replies include restrained pet-care emojis", () => {
 test("repeated greetings stay greetings even when the provider misclassifies them", () => {
   assert.equal(isGreeting("Oii"), true);
   assert.equal(isGreeting("Olaaa!!!"), true);
+  assert.equal(isGreeting("Tudo bem?"), true);
+  assert.equal(isGreeting("Olá, tudo bem?"), true);
+  assert.equal(isGreeting("Como você está?"), true);
+  assert.equal(isGreeting("Quero saber o valor"), false);
   const result = renderDecision(
     { intent: "human", question: "tutor", needsHuman: true },
     { text: "Oii", settings: {} },

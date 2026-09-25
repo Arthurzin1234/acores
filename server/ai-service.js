@@ -30,9 +30,8 @@ const normalized = (value) =>
     .toLowerCase();
 
 export function isGreeting(value) {
-  return /^(?:o+i+|ol+a+|bom dia|boa tarde|boa noite|obrigad[oa])[!.?\s]*$/u.test(
-    normalized(value).trim(),
-  );
+  const text = normalized(value).trim().replace(/\s+/gu, " ");
+  return /^(?:(?:o+i+|ol+a+|e\s*ai|hey|hello)(?:[!,\s]+(?:tudo bem|tudo certo))?|bom dia|boa tarde|boa noite|obrigad[oa]|tudo bem|tudo certo|como vai|como voce (?:esta|ta))[!.?,\s]*$/u.test(text);
 }
 
 export function approvedCatalog(settings, knowledge) {
