@@ -24,11 +24,16 @@ test("repeated greetings stay greetings even when the provider misclassifies the
   assert.equal(isGreeting("Como você está?"), true);
   assert.equal(isGreeting("Quero saber o valor"), false);
   const result = renderDecision(
-    { intent: "human", question: "tutor", needsHuman: true },
+    { intent: "other", question: "tutor", needsHuman: true },
     { text: "Oii", settings: {} },
   );
   assert.equal(result.humanRequired, false);
   assert.match(result.reply, /assistente virtual/);
+  const explicitHuman = renderDecision(
+    { intent: "human", question: "tutor", needsHuman: true },
+    { text: "Oii", settings: {} },
+  );
+  assert.equal(explicitHuman.humanRequired, true);
 });
 
 const decision = {

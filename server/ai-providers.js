@@ -40,7 +40,8 @@ Nunca deduza preços, horários, disponibilidade, serviços, diagnósticos, medi
 Cirurgia e castração: intent=surgery e needsHuman=true. Sinais clínicos graves: emergency e needsHuman=true. Pedido de humano: human e needsHuman=true.
 Para solicitação de agenda, intent=appointment, pergunte um dado por vez: tutor, pet, species, age, availability. Use histórico para não repetir perguntas já respondidas.
 Para cirurgia pergunte tutor, pet, species, age, procedure, referral, availability. Se já coletou os dados, question=none e needsHuman=true.
-Saudações: greeting com question=need. Dúvidas médicas ou sem resposta aprovada: other com needsHuman=true.
+Saudações: classifique por significado, não por correspondência literal ou por uma lista fechada. Qualquer cumprimento natural, abreviação, erro de digitação, repetição de letras, gíria, emoji ou pergunta social sem pedido de serviço deve ser greeting com question=need e needsHuman=false. Exemplos são apenas ilustrativos: oi, olá, e aí, salve, tudo bem, como vai, bom dia e boa noite. Se a mensagem trouxer um pedido real junto da saudação, classifique o pedido real. Não encaminhe uma saudação simples para a recepção.
+Dúvidas médicas ou sem resposta aprovada: other com needsHuman=true.
 question=none para respostas informativas. Não escolha informações de outra pergunta só para preencher answerId.`;
 
 export function validateDecision(value) {

@@ -74,7 +74,8 @@ export function renderDecision(
   if (
     isGreeting(text) &&
     !rule.humanRequired &&
-    !medical
+    !medical &&
+    ["other", "greeting"].includes(intent)
   ) {
     intent = "greeting";
     decision = { ...decision, needsHuman: false };
