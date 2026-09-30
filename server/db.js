@@ -88,7 +88,7 @@ export function createDatabase(rootDir, directory) {
         .prepare(
           `SELECT
             COUNT(*) AS total,
-            SUM(CASE WHEN status IN ('novo', 'em_atendimento') THEN 1 ELSE 0 END) AS open,
+            SUM(CASE WHEN status IN ('novo', 'em_atendimento', 'aguardando_cliente') THEN 1 ELSE 0 END) AS open,
             SUM(CASE WHEN human_required = 1 AND status != 'resolvido' THEN 1 ELSE 0 END) AS human,
             SUM(CASE WHEN priority = 'alta' AND status != 'resolvido' THEN 1 ELSE 0 END) AS urgent
           FROM tickets`

@@ -92,6 +92,7 @@ export function renderDecision(
     subject: "Atendimento da recepção",
     priority: "normal",
     humanRequired: false,
+    waitingForClient: false,
     summary: "Mensagem classificada conforme o padrão de atendimento.",
   };
   if (intent === "emergency")
@@ -125,6 +126,7 @@ export function renderDecision(
       summary:
         "Solicitação cirúrgica encaminhada à recepção. Procedimento e agenda dependem de confirmação humana.",
       handoffComplete: !question,
+      waitingForClient: !!question,
       reply: question
         ? `${announced ? "" : "Vou encaminhar o caso à recepção. "}${question}`
         : "Tudo certo. A recepção continuará seu atendimento.",
@@ -142,6 +144,7 @@ export function renderDecision(
   if (intent === "greeting" && !decision.needsHuman)
     return {
       ...base,
+      waitingForClient: true,
       reply: `Olá! Sou o assistente virtual do ${settings.name || "Centro Veterinário dos Açores"}. ${QUESTIONS.need}`,
     };
   if (intent === "appointment")
@@ -153,6 +156,7 @@ export function renderDecision(
       summary:
         "Solicitação de agendamento. Nenhum horário confirmado automaticamente.",
       handoffComplete: !question,
+      waitingForClient: !!question,
       reply: question
         ? `${announced ? "" : "A recepção confirmará a disponibilidade. "}${question}`
         : "Tudo certo. A recepção continuará seu atendimento.",

@@ -1712,7 +1712,9 @@ progress::-moz-progress-bar {
   min-width: 0;
 }
 .queue-controls .segmented {
-  justify-content: space-between;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .queue-list {
   overflow: auto;

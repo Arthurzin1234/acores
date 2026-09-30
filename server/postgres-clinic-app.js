@@ -47,7 +47,8 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
     ticket = await db.updateTicket(ticket.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority,
-      status: analysis.handoffComplete ? 'em_atendimento' : ticket.status, human_required: ticket.human_required || analysis.humanRequired,
+      status: analysis.handoffComplete ? 'em_atendimento' : analysis.waitingForClient ? 'aguardando_cliente' : ticket.status,
+      human_required: ticket.human_required || analysis.humanRequired,
       ai_paused: ticket.ai_paused || !!analysis.handoffComplete, ai_summary: analysis.summary });
     broadcast();
     const message = source === 'whatsapp' ? null : await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: analysis.reply });

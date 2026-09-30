@@ -63,7 +63,7 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
     async getStats() {
       const [tickets, clients, unread] = await Promise.all([
         one(`select count(*)::int as total,
-          count(*) filter (where status in ('novo','em_atendimento'))::int as open,
+          count(*) filter (where status in ('novo','em_atendimento','aguardando_cliente'))::int as open,
           count(*) filter (where human_required and status <> 'resolvido')::int as human,
           count(*) filter (where priority = 'alta' and status <> 'resolvido')::int as urgent from tickets`),
         one('select count(*)::int as total from clients'),

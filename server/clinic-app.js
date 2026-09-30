@@ -187,11 +187,22 @@ app.get("/api/tickets/:id/messages", (req, res) => {
 });
 
 app.patch("/api/tickets/:id", (req, res) => {
-  const ticket = store.updateTicket(Number(req.params.id), req.body);
+  const current = store.getTicket(Number(req.params.id));
+  if (!current)
+    return res.status(404).json({ error: "Chamado nao encontrado." });
+  const input = { ...req.body };
+  if (input.ai_paused === false && input.status === undefined &&
+      (current.ai_paused || current.status === "em_atendimento"))
+    input.status = "novo";
+  const ticket = store.updateTicket(Number(req.params.id), input);
   if (!ticket)
     return res.status(404).json({ error: "Chamado nao encontrado." });
-  if (req.body.ai_paused !== undefined || req.body.status === "em_atendimento")
-    whatsapp.setHumanPaused(ticket.phone, !!ticket.ai_paused || ticket.status === "em_atendimento");
+  if (input.ai_paused !== undefined || input.status === "em_atendimento") {
+    const paused = input.ai_paused === false
+      ? false
+      : !!ticket.ai_paused || ticket.status === "em_atendimento";
+    whatsapp.setHumanPaused(ticket.phone, paused);
+  }
   broadcast("ticket_updated", ticket);
   broadcast("dashboard", dashboardPayload());
   res.json(ticket);
@@ -379,6 +390,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
       !/\b(atendente|humano|emerg[eê]ncia|urgente)\b/i.test(text)) {
     analysis.reply = intake.nextQuestion;
     analysis.handoffComplete = false;
+    analysis.waitingForClient = true;
   }
   if (!analysis.aiUnavailable && activeTicket?.category === "urgencia" &&
       !/emerg[eê]ncia|urg[eê]ncia|atropel|convuls|envenen|n[aã]o respira|sem respirar|dor intensa/i.test(text) &&
@@ -390,6 +402,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     analysis.priority = "alta";
     analysis.reply = intake.nextQuestion || "Cadastro registrado. A recepção continuará seu atendimento prioritário.";
     analysis.handoffComplete = !intake.nextQuestion;
+    analysis.waitingForClient = !!intake.nextQuestion;
   }
   const shouldReuse = !!activeTicket;
   const updateTopic = !activeTicket?.human_required ||
@@ -405,6 +418,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
             ? analysis.priority
             : activeTicket.priority,
         human_required: activeTicket.human_required || analysis.humanRequired,
+        status: analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : activeTicket.status,
         ai_summary: mergeSummary(activeTicket.ai_summary, analysis.summary),
       })
     : store.createTicket({
@@ -414,6 +428,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
         category: analysis.category,
         priority: analysis.priority,
         human_required: analysis.humanRequired,
+        status: analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : "novo",
         ai_summary: analysis.summary,
         source,
       });

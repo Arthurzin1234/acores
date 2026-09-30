@@ -349,7 +349,9 @@ export function ConversationsPage({
       (filter === "todas" ||
         (filter === "humana"
           ? t.human_required && activeTicket(t)
-          : activeTicket(t))) &&
+          : filter === "confirmacao"
+            ? t.status === "aguardando_cliente"
+            : activeTicket(t))) &&
       matches(query, t.client_name, t.pet_name, t.id, t.phone),
   );
   const ticket = selectedId
@@ -428,6 +430,7 @@ export function ConversationsPage({
             >
               {[
                 ["abertas", "Abertas"],
+                ["confirmacao", "Esperando confirmação"],
                 ["humana", "Fila humana"],
                 ["todas", "Todas"],
               ].map(([value, label]) => (
