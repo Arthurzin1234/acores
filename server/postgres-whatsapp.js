@@ -25,6 +25,11 @@ export const extractText = (value) => {
 };
 const textOf = extractText;
 const logger = pino({ level: 'silent' });
+const isRecentMessage = (raw, maxAgeSeconds = 180) => {
+  const timestamp = Number(raw?.messageTimestamp);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return false;
+  return Math.abs(Math.floor(Date.now() / 1000) - timestamp) <= maxAgeSeconds;
+};
 
 export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onConnected, onHumanMessage, onDelivery, onAlert, env = process.env }) {
   const account = String(env.WHATSAPP_ACCOUNT || 'acores');
@@ -126,11 +131,14 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
 
   async function handleHuman(raw) {
     const jid = await resolveJid(raw?.key?.remoteJid, raw?.key?.remoteJidAlt), id = String(raw?.key?.id || '');
-    if (!privateJid(jid) || !id) return;
+    const body = textOf(raw);
+    // History sync can replay our own old/system messages. They are not a new
+    // human reply and must never create a phantom conversation in the panel.
+    if (!privateJid(jid) || !id || !body || !isRecentMessage(raw)) return;
     await db.query(`insert into wa_human_inbox(account,message_id,payload,done) values($1,$2,$3::jsonb,0) on conflict(account,message_id) do nothing`, [account, id, JSON.stringify(raw)]);
     await db.query('insert into whatsapp_human_pause(account,jid) values($1,$2) on conflict do nothing', [account, jid]);
     const seen = await db.query('insert into whatsapp_human_seen(account,id) values($1,$2) on conflict do nothing', [account, id]);
-    if (seen.rowCount) await onHumanMessage?.({ phone: jid.split('@')[0], text: textOf(raw) || '[Mensagem enviada pelo atendente]' });
+    if (seen.rowCount) await onHumanMessage?.({ phone: jid.split('@')[0], text: body });
     await db.query('update wa_human_inbox set done=1 where account=$1 and message_id=$2', [account, id]);
   }
 

@@ -11,6 +11,11 @@ import { classify, disconnectFault, failure, positiveInt, retryDelay, safeLog } 
 
 const logger = pino({ level: 'silent' });
 const iso = () => new Date().toISOString();
+const isRecentMessage = (raw, maxAgeSeconds = 180) => {
+  const timestamp = Number(raw?.messageTimestamp);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return false;
+  return Math.abs(Math.floor(Date.now() / 1000) - timestamp) <= maxAgeSeconds;
+};
 
 export class WhatsAppConnector {
   constructor({ authDir, spoolDir, onMessage, onStatus, onDelivery, onHumanMessage, onAlert,
@@ -131,6 +136,7 @@ export class WhatsAppConnector {
       on('messages.upsert', async ({ messages, type }) => {
         for (const message of messages || []) {
           if (message.key?.fromMe) {
+            if (type !== 'notify' || !isRecentMessage(message)) continue;
             const saved = minimalMessage(message, true);
             if (!saved) continue;
             try { await this.handleHumanMessage(saved); }
@@ -359,7 +365,8 @@ export class WhatsAppConnector {
 
   async handleHumanMessage(message) {
     const jid = cleanJid(message.key?.remoteJid), id = message.key?.id;
-    if (!message.key?.fromMe || !privateJid(jid) || !id || !message.message ||
+    const body = extractText(message.message);
+    if (!message.key?.fromMe || !privateJid(jid) || !id || !message.message || !body || !isRecentMessage(message) ||
       message.message.protocolMessage || message.message.senderKeyDistributionMessage) return;
     this.queue.receive(this.policy.account, minimalMessage(message, true));
     if (this.db.prepare('SELECT 1 FROM whatsapp_sent_ids WHERE account=? AND id=?').get(this.policy.account, id)) {
@@ -382,7 +389,7 @@ export class WhatsAppConnector {
     this.queue.transaction(() => {
       this.db.prepare('UPDATE wa_human_inbox SET done=1 WHERE account=? AND message_id=?').run(this.policy.account, id);
       if (!this.db.prepare('INSERT OR IGNORE INTO whatsapp_human_seen VALUES (?,?)').run(this.policy.account, id).changes) return;
-      this.onHumanMessage?.({ phone: phoneJid.split('@')[0], text: extractText(message.message) || '[Mensagem de mídia enviada pelo atendente]' });
+      this.onHumanMessage?.({ phone: phoneJid.split('@')[0], text: body });
     });
   }
 

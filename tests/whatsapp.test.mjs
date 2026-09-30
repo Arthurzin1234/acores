@@ -48,6 +48,28 @@ test("human intervention blocks an in-flight reply; bot echoes do not pause", as
   } finally { db.close(); }
 });
 
+test("history and empty own messages never create phantom human conversations", async () => {
+  const db = new DatabaseSync(":memory:");
+  let human = 0;
+  const bot = new WhatsAppConnector({
+    db, authDir: ".", onStatus() {}, onHumanMessage: () => { human++; },
+  });
+  bot.policy.begin(account);
+  try {
+    await bot.handleHumanMessage({
+      key: { remoteJid: jid, id: "old-own-message", fromMe: true },
+      messageTimestamp: Math.floor(Date.now() / 1000) - 600,
+      message: { conversation: "Mensagem antiga" },
+    });
+    await bot.handleHumanMessage({
+      key: { remoteJid: jid, id: "system-own-message", fromMe: true },
+      messageTimestamp: Math.floor(Date.now() / 1000),
+      message: {},
+    });
+    assert.equal(human, 0);
+  } finally { db.close(); }
+});
+
 test("live greetings wait for archive sync; archived chats remain blocked", async () => {
   const db = new DatabaseSync(":memory:");
   const received = [];
