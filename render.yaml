@@ -62,5 +62,7 @@ services:
         value: "false"
       - key: SEED_DEMO
         value: "false"
+      - key: DEMO_CONVERSATIONS_ON_CONNECT
+        value: "true"
       - key: MEMORY_ALERT_MB
         value: "1536"

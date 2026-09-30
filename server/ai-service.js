@@ -62,6 +62,7 @@ export function renderDecision(
       normalized(text),
     );
   let intent = decision.intent;
+  const serviceCategory = ['banho_tosa', 'consulta', 'orcamento'].includes(rule.category);
   if (rule.humanRequired)
     intent = clinical
       ? "surgery"
@@ -71,14 +72,16 @@ export function renderDecision(
   if (medical && !["surgery", "emergency"].includes(intent)) intent = "human";
   if (/emergencia|urgencia|atropel|convuls|envenen|nao respira|sem respirar|dor intensa/.test(normalized(text)))
     intent = "emergency";
-  if (
-    isGreeting(text) &&
-    !rule.humanRequired &&
-    !medical &&
-    ["other", "greeting"].includes(intent)
-  ) {
+  if (isGreeting(text) && !rule.humanRequired && !medical && !serviceCategory && !['human', 'surgery', 'emergency'].includes(intent)) {
     intent = "greeting";
     decision = { ...decision, needsHuman: false };
+  }
+  // Keep obvious service requests usable when a provider returns a vague label.
+  // The model still chooses the question and approved answer; this only prevents
+  // a clear banho/consulta/orcamento request from becoming an unnecessary handoff.
+  if (!rule.humanRequired && !medical && serviceCategory && intent === 'other') {
+    intent = rule.category === 'orcamento' ? 'information' : 'appointment';
+    decision = { ...decision, needsHuman: false, question: decision.question === 'none' ? 'tutor' : decision.question };
   }
   const catalog = approvedCatalog(settings, knowledge);
   const question = QUESTIONS[decision.question];

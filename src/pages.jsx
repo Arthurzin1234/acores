@@ -503,7 +503,9 @@ export function ConversationsPage({
                   onClick={() => run(() => api.updateTicket(ticket.id, {
                     ai_paused: !(ticket.ai_paused || ticket.status === "em_atendimento"),
                     ...((ticket.ai_paused || ticket.status === "em_atendimento") ? { status: "novo" } : {}),
-                  }), "Atendimento atualizado.")}>
+                  }), (result) => result?.demoConversationId
+                    ? `IA reativada. Conversa de teste #${result.demoConversationId} criada.`
+                    : "Atendimento atualizado.")}>
                   {ticket.ai_paused || ticket.status === "em_atendimento" ? <Play /> : <Pause />}
                   {ticket.ai_paused || ticket.status === "em_atendimento" ? "Reativar IA" : "Pausar IA"}
                 </button>

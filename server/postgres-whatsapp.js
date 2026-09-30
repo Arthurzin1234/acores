@@ -26,7 +26,7 @@ export const extractText = (value) => {
 const textOf = extractText;
 const logger = pino({ level: 'silent' });
 
-export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onHumanMessage, onDelivery, onAlert, env = process.env }) {
+export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage, onConnected, onHumanMessage, onDelivery, onAlert, env = process.env }) {
   const account = String(env.WHATSAPP_ACCOUNT || 'acores');
   const maxAttempts = Math.max(1, Number(env.WHATSAPP_MAX_RECONNECTS || 6));
   const responseDelayMs = Math.max(0, Math.min(10000, Number(env.WHATSAPP_RESPONSE_DELAY_MS || 1000)));
@@ -235,7 +235,7 @@ export async function createPostgresWhatsApp({ db, authDir: _authDir, onMessage,
         current.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
           if (currentGeneration !== generation) return;
           if (qr) setStatus({ mode: 'qr', connected: false, qrDataUrl: await QRCode.toDataURL(qr, { margin: 1, width: 280 }), requiresNewQr: false, lastEvent: 'Escaneie o QR Code para conectar.' });
-          if (connection === 'open') { setStatus({ mode: 'connected', connected: true, phone: current.user?.id || null, qrDataUrl: null, attempts: 0, requiresNewQr: false, requiresIntervention: false, offlineSince: null, lastReconnectAt: new Date().toISOString() }); archiveReadyTimer = setTimeout(() => { if (!state.archiveSyncReady && socket === current) { setStatus({ archiveSyncReady: true }); scheduleDrain(0); } }, 15000); archiveReadyTimer.unref?.(); scheduleDrain(0); }
+          if (connection === 'open') { setStatus({ mode: 'connected', connected: true, phone: current.user?.id || null, qrDataUrl: null, attempts: 0, requiresNewQr: false, requiresIntervention: false, offlineSince: null, lastReconnectAt: new Date().toISOString() }); void Promise.resolve(onConnected?.()).catch(() => {}); archiveReadyTimer = setTimeout(() => { if (!state.archiveSyncReady && socket === current) { setStatus({ archiveSyncReady: true }); scheduleDrain(0); } }, 15000); archiveReadyTimer.unref?.(); scheduleDrain(0); }
           if (connection === 'close') { socket = null; generation += 1; clearTimeout(archiveReadyTimer); archiveReadyTimer = null; const code = lastDisconnect?.error?.output?.statusCode, fault = disconnectFault(code); setStatus({ archiveSyncReady: false, connected: false, qrDataUrl: null, offlineSince: state.offlineSince || new Date().toISOString(), lastError: { code: fault.code, message: fault.message } }); report(fault); if (code === DisconnectReason.loggedOut || ['invalid_session','forbidden','replaced','mismatch'].includes(fault.code)) setStatus({ mode: 'intervention', requiresNewQr: true, requiresIntervention: true }); else reconnect(); }
         });
         current.ev.on('messages.upsert', async ({ messages, type }) => { if (type !== 'notify' || currentGeneration !== generation) return; for (const message of messages || []) { if (message.key?.fromMe) { if (!(await isAutomaticMessage(message))) await handleHuman(message); } else await enqueue(message); } });

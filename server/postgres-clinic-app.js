@@ -12,6 +12,7 @@ import { createPostgresWhatsApp } from './postgres-whatsapp.js';
 import bcrypt from 'bcryptjs';
 import { WebSocketServer } from 'ws';
 import { createConversationMemory } from './conversation-memory.js';
+import { randomInt } from 'node:crypto';
 
 export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   const company = { id: 'acores', name: 'Centro Veterinário dos Açores', primary: true };
@@ -21,6 +22,9 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   const ai = createAIService(aiConfig, async () => ({ ...(await clinic.snapshot()).settings, is24Hours: true }));
   const conversationMemory = createConversationMemory(process.env);
   await conversationMemory.init();
+  const demoConversationsEnabled = process.env.DEMO_CONVERSATIONS_ON_CONNECT === 'true';
+  let demoConnectionSeeded = false;
+  let broadcast = () => {};
   const app = express();
   const security = await createPostgresSecurity(db, dataDir, process.env, company);
   security.install(app);
@@ -51,10 +55,43 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     if (analysis.reply) await conversationMemory.append(phone, { direction: 'outbound', author: 'Açores IA', body: analysis.reply }).catch(() => {});
     return { ticket: await db.getTicket(ticket.id), client, reply: analysis.reply, message, aiProvider: analysis.aiProvider };
   };
-  const whatsapp = await createPostgresWhatsApp({ db, authDir, onMessage: processIncoming, onAlert: () => {}, onDelivery: async ({ ticket, reply }) => { if (ticket?.id && reply) await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: reply }); }, onHumanMessage: async ({ phone, text }) => { const client = await db.getClientByPhone(phone) || await db.upsertClient({ phone }); const ticket = await db.findActiveTicket(phone) || await db.createTicket({ client_id: client.id, phone, subject: 'Atendimento humano', source: 'whatsapp' }); await db.updateTicket(ticket.id, { ai_paused: true, human_required: true, status: 'em_atendimento' }); await db.addMessage(ticket.id, { direction: 'outbound', author: 'Recepção', body: text }); } });
+  const demoScenarios = [
+    ['Marina Costa', 'Olá, quero marcar um banho'],
+    ['Rafael Souza', 'Boa tarde, gostaria de agendar uma consulta'],
+    ['Camila Oliveira', 'Oii, preciso marcar uma vacina para meu pet'],
+  ];
+  const createDemoConversation = async (index = 0) => {
+    const [name, text] = demoScenarios[index % demoScenarios.length];
+    const phone = `5551${randomInt(100000000, 999999999)}`;
+    return processIncoming({ phone, name, text, source: 'simulador' });
+  };
+  const seedDemoConversations = async (count) => {
+    if (!demoConversationsEnabled) return [];
+    const existing = await db.one("select count(*)::int as total from tickets where source='simulador'");
+    if (count === 3) count = Math.max(0, count - Number(existing?.total || 0));
+    const created = [];
+    for (let index = 0; index < count; index += 1) {
+      try { created.push(await createDemoConversation(index)); } catch { /* Demo data must never affect the WhatsApp worker. */ }
+    }
+    broadcast();
+    return created;
+  };
+  const whatsapp = await createPostgresWhatsApp({
+    db,
+    authDir,
+    onMessage: processIncoming,
+    onConnected: async () => {
+      if (demoConnectionSeeded) return;
+      demoConnectionSeeded = true;
+      await seedDemoConversations(3);
+    },
+    onAlert: () => {},
+    onDelivery: async ({ ticket, reply }) => { if (ticket?.id && reply) await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: reply }); },
+    onHumanMessage: async ({ phone, text }) => { const client = await db.getClientByPhone(phone) || await db.upsertClient({ phone }); const ticket = await db.findActiveTicket(phone) || await db.createTicket({ client_id: client.id, phone, subject: 'Atendimento humano', source: 'whatsapp' }); await db.updateTicket(ticket.id, { ai_paused: true, human_required: true, status: 'em_atendimento' }); await db.addMessage(ticket.id, { direction: 'outbound', author: 'Recepção', body: text }); },
+  });
   const snapshot = async () => { const clinicData = await clinic.snapshot(); return { stats: await db.getStats(), clients: await db.listClients(), tickets: await db.listTickets(), notifications: await db.listNotifications(), whatsapp: await whatsapp.snapshot(), petshopName: clinicData.settings.name, company, ...clinicData, ai: { ...(await aiConfig.snapshot()), runtime: ai.snapshot() } }; };
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
-  const broadcast = () => { void snapshot().then((data) => { for (const client of wss.clients) { if (client.readyState === client.OPEN) client.send(JSON.stringify({ type: 'dashboard', payload: data })); } }).catch(() => {}); };
+  broadcast = () => { void snapshot().then((data) => { for (const client of wss.clients) { if (client.readyState === client.OPEN) client.send(JSON.stringify({ type: 'dashboard', payload: data })); } }).catch(() => {}); };
   wss.on('connection', async (socket, req) => { const session = await security.session(req); if (session) socket.send(JSON.stringify({ type: 'dashboard', payload: security.view(await snapshot(), session) })); });
 
   app.get('/api/health', async (_req, res) => { try { await db.query('select 1'); res.json({ ok: true, service: 'acores', database: 'supabase' }); } catch { res.status(503).json({ ok: false, service: 'acores' }); } });
@@ -64,7 +101,21 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
   app.patch('/api/clients/:id', async (req, res) => { try { if (req.user.role === 'usuario' && Number(req.params.id) !== Number(req.user.client_id)) return res.status(404).json({ error: 'Cliente nao encontrado.' }); const client = await db.updateClient(Number(req.params.id), req.body); if (!client) return res.status(404).json({ error: 'Cliente nao encontrado.' }); res.json(client); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.get('/api/tickets', async (req, res) => { const rows = await db.listTickets(); res.json(req.user.role === 'usuario' ? rows.filter((t) => Number(t.client_id) === Number(req.user.client_id)) : rows); });
   app.get('/api/tickets/:id/messages', async (req, res) => { const ticket = await db.getTicket(Number(req.params.id)); if (!ticket || (req.user.role === 'usuario' && Number(ticket.client_id) !== Number(req.user.client_id))) return res.status(404).json({ error: 'Chamado nao encontrado.' }); res.json({ ticket, messages: await db.listMessages(ticket.id) }); });
-  app.patch('/api/tickets/:id', async (req, res) => { const current = await db.getTicket(Number(req.params.id)); if (!current || (req.user.role === 'usuario' && Number(current.client_id) !== Number(req.user.client_id))) return res.status(404).json({ error: 'Chamado nao encontrado.' }); const ticket = await db.updateTicket(Number(req.params.id), req.body); if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' }); if (req.body.ai_paused !== undefined || req.body.status === 'em_atendimento') await whatsapp.setHumanPaused(ticket.phone, !!ticket.ai_paused || ticket.status === 'em_atendimento'); res.json(ticket); });
+  app.patch('/api/tickets/:id', async (req, res) => {
+    const current = await db.getTicket(Number(req.params.id));
+    if (!current || (req.user.role === 'usuario' && Number(current.client_id) !== Number(req.user.client_id))) return res.status(404).json({ error: 'Chamado nao encontrado.' });
+    const input = { ...req.body };
+    const reactivated = input.ai_paused === false && (current.ai_paused || current.status === 'em_atendimento');
+    if (reactivated && input.status === undefined) input.status = 'novo';
+    const ticket = await db.updateTicket(Number(req.params.id), input);
+    if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' });
+    if (input.ai_paused !== undefined || input.status === 'em_atendimento') {
+      const paused = input.ai_paused === false ? false : !!ticket.ai_paused || ticket.status === 'em_atendimento';
+      await whatsapp.setHumanPaused(ticket.phone, paused);
+    }
+    const demo = reactivated ? await seedDemoConversations(1) : [];
+    res.json({ ...ticket, demoConversationId: demo[0]?.ticket?.id || null });
+  });
   app.post('/api/tickets/:id/messages', async (req, res) => { const ticket = await db.getTicket(Number(req.params.id)); const body = String(req.body.body || '').trim(); if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' }); if (!body) return res.status(400).json({ error: 'Mensagem vazia.' }); await db.updateTicket(ticket.id, { ai_paused: true, status: 'em_atendimento', human_required: true }); await whatsapp.setHumanPaused(ticket.phone); const message = await db.addMessage(ticket.id, { direction: 'outbound', author: req.user.email, body }); const delivery = req.body.sendToWhatsApp ? await whatsapp.sendText(ticket.phone, body, { id: `manual:${message.id}`, ticketId: ticket.id }) : { delivered: false, reason: 'Mensagem registrada no painel.' }; res.status(201).json({ message, delivery }); });
   app.post('/api/simulate-message', async (req, res) => { try { const result = await processIncoming({ phone: String(req.body.phone || '').replace(/\D/g, ''), name: req.body.name, text: req.body.text, source: 'simulador' }); res.status(201).json(result); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.patch('/api/ai/settings', async (req, res) => { try { res.json(await aiConfig.save(req.body)); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });

@@ -36,6 +36,20 @@ test("repeated greetings stay greetings even when the provider misclassifies the
   assert.equal(explicitHuman.humanRequired, true);
 });
 
+test("clear service requests stay appointments when the provider returns other", async () => {
+  const config = {
+    snapshot: () => ({ provider: "gemini", knowledge: [] }),
+    credentials: () => ({ key: "test", model: "test" }),
+  };
+  const ai = createAIService(config, () => ({ name: "Centro Veterinário dos Açores" }), async () => ({
+    intent: "other", answerId: "", question: "tutor", needsHuman: true,
+  }));
+  const result = await ai.analyze("Olá, quero marcar um banho");
+  assert.equal(result.category, "banho_tosa");
+  assert.equal(result.humanRequired, false);
+  assert.match(result.reply, /nome do tutor/iu);
+});
+
 const decision = {
   intent: "information",
   answerId: "price",
