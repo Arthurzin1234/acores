@@ -67,7 +67,8 @@ export function collectPatient(text, history, client = {}) {
   if (pet && validName(pet)) patch.pet_name = pet;
   const species = speciesValue(text);
   if (species) patch.species = species;
-  const groupedQuestion = /nome do tutor.*esp[eé]cie.*idade/iu.test(question);
+  // The WhatsApp form is multiline, so `.` cannot be used between its labels.
+  const groupedQuestion = /nome do tutor[\s\S]*esp[eé]cie[\s\S]*idade/iu.test(question);
   const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) || groupedQuestion
     ? ageValue(text)
     : undefined;

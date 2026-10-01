@@ -58,3 +58,14 @@ test("a compact form answer is understood without labels or line breaks", () => 
   assert.equal(result.requestedSlot, "amanhã");
   assert.equal(result.complete, true);
 });
+
+test("a multiline WhatsApp form answer is completed in one response", () => {
+  const result = collectPatient(
+    "Roger\nCanino\n7 anos\nHoje",
+    history("🐶 Me passa algumas informações, por favor?\nNome do tutor:\nEspécie do pet:\nIdade do pet:\nMelhor dia e horário para a recepção retornar:"),
+    {},
+  );
+  assert.deepEqual(result.patch, { name: "Roger", species: "Canina", pet_age: "7 anos" });
+  assert.equal(result.requestedSlot, "Hoje");
+  assert.equal(result.complete, true);
+});
