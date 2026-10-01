@@ -278,6 +278,7 @@ export function createAIService(
         category: 'informacao', subject: 'Informação da clínica', priority: 'normal',
         humanRequired: false, handoffComplete: false, waitingForClient: false,
         summary: 'Informação institucional enviada automaticamente.', reply: decorateReply(directInfo, 'geral'),
+        directInfo: true,
         aiProvider: 'rules',
       };
       const rule = analyzeMessage(text);

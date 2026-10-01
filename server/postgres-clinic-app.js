@@ -49,7 +49,7 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
     const intakeFormWasSent = (cloudHistory.length ? cloudHistory : history)
       .some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
-    if (!analysis.aiUnavailable && intakeFormWasSent && !intake.complete && analysis.category !== 'urgencia') {
+    if (!analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== 'urgencia') {
       analysis.reply = QUESTIONS.tutor;
       analysis.handoffComplete = false;
       analysis.waitingForClient = true;

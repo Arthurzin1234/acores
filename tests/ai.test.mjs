@@ -50,6 +50,16 @@ test("clear service requests stay appointments when the provider returns other",
   assert.match(result.reply, /nome do tutor/iu);
 });
 
+test("clinic hours bypass a pending intake form", async () => {
+  const ai = createAIService(
+    { snapshot: () => ({ provider: "rules", knowledge: [] }), credentials: () => ({ key: "", model: "" }) },
+    () => ({ name: "Centro Veterinário dos Açores", is24Hours: true }),
+  );
+  const result = await ai.analyze("vocês trabalham 24horas?", [{ direction: "outbound", body: "Me passa algumas informações, por favor?" }]);
+  assert.equal(result.directInfo, true);
+  assert.match(result.reply, /24 horas/iu);
+});
+
 const decision = {
   intent: "information",
   answerId: "price",
