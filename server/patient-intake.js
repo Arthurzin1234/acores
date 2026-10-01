@@ -46,6 +46,58 @@ const positionalAnswers = (text) => String(text || "")
   .map((item) => cleanValue(item))
   .filter(Boolean);
 
+const dateValue = (text) => String(text || "").match(/(?:hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/iu)?.[0];
+const timeValue = (text) => String(text || "").match(/\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b/iu)?.[0];
+
+const serviceValue = (text) => {
+  const value = normalize(text);
+  if (/castra/.test(value)) return { name: 'Castração', surgery: true };
+  if (/cirurg/.test(value)) return { name: 'Cirurgia', surgery: true };
+  if (/banho|tosa|higien/.test(value)) return { name: 'Banho e tosa', surgery: false };
+  if (/vacina/.test(value)) return { name: 'Vacinação', surgery: false };
+  if (/consulta|checkup|retorno/.test(value)) return { name: 'Consulta', surgery: false };
+  return null;
+};
+
+export function schedulingStep(text, history = [], client = {}) {
+  const inbound = [...history.filter((message) => message.direction === 'inbound').map((message) => message.body), text].join('\n');
+  const request = /agend|marcar|hor[aá]rio|vaga|castra|cirurg|banho|tosa|consulta|vacina|checkup|retorno/iu.test(inbound);
+  if (!request) return null;
+  const service = serviceValue(inbound);
+  if (!service) return { reply: 'Claro! Qual atendimento você gostaria de agendar?', waitingForClient: true, category: 'geral', subject: 'Agendamento a identificar' };
+  const lastQuestion = normalize([...history].reverse().find((message) => message.direction === 'outbound')?.body || '');
+  const current = collectPatient(text, history, {});
+  const patient = { ...client, ...current.patch };
+  const registered = !!(client.pet_name || client.species || client.pet_age);
+  const tutorValue = registered ? client.name : patient.name;
+  const tutor = tutorValue === 'Cliente sem nome' ? null : tutorValue;
+  const desiredDate = dateValue(inbound);
+  const desiredTime = timeValue(inbound);
+  if (service.surgery) {
+    const steps = [
+      ['name', tutor, 'Qual é o nome do tutor?'],
+      ['pet_name', patient.pet_name, 'Qual é o nome do seu pet?'],
+      ['species', patient.species, 'Qual é a espécie do seu pet?'],
+      ['pet_age', patient.pet_age, 'Qual é a idade do seu pet, em meses ou anos?'],
+      ['date', desiredDate, 'Qual dia você gostaria de agendar?'],
+      ['time', desiredTime, 'Qual horário você prefere?'],
+    ];
+    const missing = steps.find(([, value]) => !value);
+    if (missing) return { reply: missing[2], waitingForClient: true, category: 'cirurgia', subject: `Solicitação de ${service.name}`, surgery: true };
+  } else {
+    const category = service.name === 'Banho e tosa' ? 'banho_tosa' : 'consulta';
+    if (!desiredDate) return { reply: 'Qual dia você gostaria de agendar?', waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
+    if (!desiredTime) return { reply: 'Qual horário você prefere?', waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
+  }
+  return {
+    reply: 'Pedido recebido. A recepção confirmará a disponibilidade para você.',
+    complete: true,
+    category: service.surgery ? 'cirurgia' : (service.name === 'Banho e tosa' ? 'banho_tosa' : 'consulta'),
+    subject: `Agendamento de ${service.name}`,
+    summary: `Serviço: ${service.name}. Data desejada: ${desiredDate}. Horário desejado: ${desiredTime}.`,
+  };
+}
+
 export function collectPatient(text, history, client = {}) {
   const last = [...history].reverse().find((m) => m.direction === "outbound");
   const question = normalize(last?.body || "");

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectPatient } from "../server/patient-intake.js";
+import { collectPatient, schedulingStep } from "../server/patient-intake.js";
 const history = (body) => [{ direction: "outbound", body }];
 
 test("pet answers populate only the requested field and ask for missing data", () => {
@@ -68,4 +68,23 @@ test("a multiline WhatsApp form answer is completed in one response", () => {
   assert.deepEqual(result.patch, { name: "Roger", species: "Canina", pet_age: "7 anos" });
   assert.equal(result.requestedSlot, "Hoje");
   assert.equal(result.complete, true);
+});
+
+test("scheduling asks only for the missing date and time of a registered client", () => {
+  const client = { name: 'Roger', pet_name: 'Bob', species: 'Canina', pet_age: '7 anos' };
+  const first = schedulingStep('Quero agendar uma consulta', [], client);
+  assert.equal(first.reply, 'Qual dia você gostaria de agendar?');
+  const day = schedulingStep('Amanhã', [{ direction: 'inbound', body: 'Quero agendar uma consulta' }], client);
+  assert.equal(day.reply, 'Qual horário você prefere?');
+  const complete = schedulingStep('14:00', [{ direction: 'inbound', body: 'Quero agendar uma consulta' }, { direction: 'inbound', body: 'Amanhã' }], client);
+  assert.equal(complete.complete, true);
+  assert.match(complete.summary, /Data desejada: Amanhã/);
+  assert.match(complete.summary, /Horário desejado: 14:00/);
+});
+
+test("surgery gathers one missing datum at a time", () => {
+  const first = schedulingStep('Quero marcar uma castração', [], { name: 'Cliente sem nome' });
+  assert.equal(first.reply, 'Qual é o nome do tutor?');
+  const pet = schedulingStep('Bob', [{ direction: 'inbound', body: 'Quero marcar uma castração' }, { direction: 'outbound', body: 'Qual é o nome do tutor?' }, { direction: 'inbound', body: 'Roger' }], { name: 'Roger' });
+  assert.equal(pet.reply, 'Qual é o nome do seu pet?');
 });

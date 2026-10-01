@@ -137,7 +137,9 @@ export function createDatabase(rootDir, directory) {
       const existing = this.getClientByPhone(phone);
       if (existing) {
         const merged = {
-          name: input.name || existing.name,
+          // Bot collection can fill an unnamed profile once, but it must never
+          // overwrite a tutor name already confirmed in the central.
+          name: existing.name && existing.name !== 'Cliente sem nome' ? existing.name : (input.name || existing.name),
           email: input.email ?? existing.email,
           pet_name: input.pet_name ?? existing.pet_name,
           species: input.species ?? existing.species,

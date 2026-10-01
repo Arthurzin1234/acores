@@ -88,7 +88,7 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
         on conflict(phone) do update set name=excluded.name, email=excluded.email, pet_name=excluded.pet_name,
           species=excluded.species, breed=excluded.breed, pet_age=excluded.pet_age, pet_weight=excluded.pet_weight,
           notes=excluded.notes, updated_at=excluded.updated_at returning *`,
-        [input.name || current?.name || 'Cliente sem nome', phone, input.email ?? current?.email ?? null,
+        [current?.name && current.name !== 'Cliente sem nome' ? current.name : (input.name || current?.name || 'Cliente sem nome'), phone, input.email ?? current?.email ?? null,
           input.pet_name ?? current?.pet_name ?? null, input.species ?? current?.species ?? null,
           input.breed ?? current?.breed ?? null, input.pet_age ?? current?.pet_age ?? null,
           input.pet_weight ?? current?.pet_weight ?? null, input.notes ?? current?.notes ?? null, now()]);

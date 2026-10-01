@@ -5,7 +5,7 @@ import { createPostgresClinicStore, registerPostgresClinicRoutes } from './postg
 import { createPostgresAIConfig } from './postgres-ai-config.js';
 import { appendClientNote, createAIService, clinicInfoReply, isGreeting, QUESTIONS } from './ai-service.js';
 import { createPostgresSecurity } from './postgres-security.js';
-import { collectPatient } from './patient-intake.js';
+import { collectPatient, schedulingStep } from './patient-intake.js';
 import { buildHumanNotification } from './ai.js';
 import { legalDocuments } from './legal.js';
 import { createPostgresWhatsApp } from './postgres-whatsapp.js';
@@ -36,7 +36,8 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     const active = await db.findActiveTicket(phone);
     const history = active ? await db.listMessages(active.id) : [];
     const intake = collectPatient(text, history, existing || {});
-    const client = await db.upsertClient({ phone, name: existing?.name || name, ...intake.patch,
+    const { name: submittedTutorName, ...patientPatch } = intake.patch;
+    const client = await db.upsertClient({ phone, name: existing?.name && existing.name !== 'Cliente sem nome' ? existing.name : submittedTutorName, ...patientPatch,
       ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existing?.notes, text) } : {}) });
     let ticket = active || await db.createTicket({ client_id: client.id, phone, subject: 'Novo atendimento', category: 'geral', priority: 'normal', source });
     const inboundMessage = await db.addMessage(ticket.id, { direction: 'inbound', author: client.name, body: text, externalId: messageId ? `whatsapp:${messageId}` : null });
@@ -46,15 +47,19 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     if (suppressReply || active?.status === 'em_atendimento' || active?.ai_paused)
       return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
-    const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
+    let analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
+    const scheduling = analysis.aiUnavailable || analysis.directInfo ? null : schedulingStep(text, cloudHistory.length ? cloudHistory : history, client);
+    if (scheduling) analysis = { ...analysis, ...scheduling, humanRequired: !!scheduling.complete,
+      handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
+      waitingForConfirmation: !!scheduling.complete };
     const intakeFormWasSent = (cloudHistory.length ? cloudHistory : history)
       .some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
-    if (!analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== 'urgencia') {
+    if (!scheduling && !analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== 'urgencia') {
       analysis.reply = QUESTIONS.tutor;
       analysis.handoffComplete = false;
       analysis.waitingForClient = true;
     }
-    if (!analysis.aiUnavailable && intake.complete && analysis.category !== 'urgencia') {
+    if (!scheduling && !analysis.aiUnavailable && intake.complete && analysis.category !== 'urgencia') {
       analysis.reply = 'Tudo certo. A recepção continuará seu atendimento. 🐾';
       analysis.handoffComplete = false;
       analysis.waitingForClient = false;

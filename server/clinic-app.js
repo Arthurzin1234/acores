@@ -9,7 +9,7 @@ import { createDatabase, sanitizePhone, seedDatabase } from "./db.js";
 import { WhatsAppConnector } from "./whatsapp.js";
 import { createClinicStore, registerClinicRoutes } from "./clinic.js";
 import { registerDeletionRoutes } from "./deletions.js";
-import { collectPatient } from "./patient-intake.js";
+import { collectPatient, schedulingStep } from "./patient-intake.js";
 import { createSecurity } from './security.js';
 import { validateRequests } from './validation.js';
 import { createHealthMonitor } from './health-monitor.js';
@@ -369,7 +369,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
   const history = cloudHistory.length ? cloudHistory : (activeTicket ? store.listMessages(activeTicket.id) : []);
   const existingClient = store.getClientByPhone(normalizedPhone);
   const intake = collectPatient(text, history, existingClient || {});
-  const analysis = await ai.analyze(
+  let analysis = await ai.analyze(
     text,
     history,
     signal,
@@ -381,19 +381,26 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     const message = store.addMessage(activeTicket.id, { direction: 'inbound', author: name || 'Cliente', body: text });
     return { ticket: store.getTicket(activeTicket.id), message, reply: null, humanActive: true };
   }
+  const { name: submittedTutorName, ...patientPatch } = intake.patch;
   const client = store.upsertClient({
     phone: normalizedPhone,
-    name: existingClient?.name || name || undefined,
-    ...intake.patch,
+    name: existingClient?.name && existingClient.name !== 'Cliente sem nome' ? existingClient.name : (submittedTutorName || undefined),
+    ...patientPatch,
     ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existingClient?.notes, text) } : {}),
   });
+  const scheduling = analysis.aiUnavailable || analysis.directInfo ? null : schedulingStep(text, history, client);
+  if (scheduling) {
+    analysis = { ...analysis, ...scheduling, humanRequired: !!scheduling.complete,
+      handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
+      waitingForConfirmation: !!scheduling.complete };
+  }
   const intakeFormWasSent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
-  if (!analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== "urgencia") {
+  if (!scheduling && !analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== "urgencia") {
     analysis.reply = QUESTIONS.tutor;
     analysis.handoffComplete = false;
     analysis.waitingForClient = true;
   }
-  if (!analysis.aiUnavailable && intake.complete && analysis.category !== "urgencia") {
+  if (!scheduling && !analysis.aiUnavailable && intake.complete && analysis.category !== "urgencia") {
     analysis.reply = "Tudo certo. A recepção continuará seu atendimento. 🐾";
     analysis.handoffComplete = false;
     analysis.waitingForClient = false;
