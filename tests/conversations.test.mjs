@@ -44,6 +44,7 @@ test("topic changes and follow-ups reuse an open conversation", async () => {
     assert.equal(setup.status, 201);
     cookie = setup.headers.get('set-cookie').split(';')[0]; csrf = (await setup.json()).csrf;
     const first = await send("ola");
+    assert.match(first.reply, /assistente virtual/iu);
     const surgery = await send("quero marcar uma cirurgia");
     const followup = await send("meu pet tem 3 anos");
     assert.equal(surgery.ticket.id, first.ticket.id);

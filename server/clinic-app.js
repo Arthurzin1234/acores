@@ -395,7 +395,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
       waitingForConfirmation: !!scheduling.complete };
   }
   const intakeFormWasSent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
-  if (!scheduling && !analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== "urgencia") {
+  if (!scheduling && !isGreeting(text) && !analysis.aiUnavailable && !analysis.directInfo && intakeFormWasSent && !intake.complete && analysis.category !== "urgencia") {
     analysis.reply = QUESTIONS.tutor;
     analysis.handoffComplete = false;
     analysis.waitingForClient = true;
