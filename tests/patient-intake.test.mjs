@@ -88,3 +88,11 @@ test("surgery gathers one missing datum at a time", () => {
   const pet = schedulingStep('Bob', [{ direction: 'inbound', body: 'Quero marcar uma castração' }, { direction: 'outbound', body: 'Qual é o nome do tutor?' }, { direction: 'inbound', body: 'Roger' }], { name: 'Roger' });
   assert.equal(pet.reply, 'Qual é o nome do seu pet?');
 });
+
+test("a simple greeting never resumes an old scheduling flow", () => {
+  const step = schedulingStep('ola', [
+    { direction: 'inbound', body: 'Quero marcar uma castração' },
+    { direction: 'outbound', body: 'Qual é o nome do tutor?' },
+  ], { name: 'Cliente sem nome' });
+  assert.equal(step, null);
+});

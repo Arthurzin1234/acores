@@ -60,6 +60,8 @@ const serviceValue = (text) => {
 };
 
 export function schedulingStep(text, history = [], client = {}) {
+  const currentMessage = normalize(text).trim().replace(/\s+/gu, ' ');
+  if (/^(?:o+i+|ol+a+|e\s*ai|hey|hello|bom dia|boa tarde|boa noite)[!.?,\s]*$/u.test(currentMessage)) return null;
   const inbound = [...history.filter((message) => message.direction === 'inbound').map((message) => message.body), text].join('\n');
   const request = /agend|marcar|hor[aá]rio|vaga|castra|cirurg|banho|tosa|consulta|vacina|checkup|retorno/iu.test(inbound);
   if (!request) return null;
