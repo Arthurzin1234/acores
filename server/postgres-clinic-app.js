@@ -48,8 +48,10 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
       return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     let analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
-    const scheduling = analysis.aiUnavailable || analysis.directInfo ? null : schedulingStep(text, cloudHistory.length ? cloudHistory : history, client);
-    if (scheduling) analysis = { ...analysis, ...scheduling, humanRequired: !!scheduling.complete,
+    // Known booking flows are deterministic and must not depend on a temporary
+    // provider outage. Open-ended questions still use the AI fallback policy.
+    const scheduling = analysis.directInfo ? null : schedulingStep(text, cloudHistory.length ? cloudHistory : history, client);
+    if (scheduling) analysis = { ...analysis, ...scheduling, aiUnavailable: false, humanRequired: !!scheduling.complete,
       handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
       waitingForConfirmation: !!scheduling.complete };
     const intakeFormWasSent = (cloudHistory.length ? cloudHistory : history)

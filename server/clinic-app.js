@@ -388,9 +388,11 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     ...patientPatch,
     ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existingClient?.notes, text) } : {}),
   });
-  const scheduling = analysis.aiUnavailable || analysis.directInfo ? null : schedulingStep(text, history, client);
+  // Known booking flows are deterministic and must not depend on a temporary
+  // provider outage. Open-ended questions still use the AI fallback policy.
+  const scheduling = analysis.directInfo ? null : schedulingStep(text, history, client);
   if (scheduling) {
-    analysis = { ...analysis, ...scheduling, humanRequired: !!scheduling.complete,
+    analysis = { ...analysis, ...scheduling, aiUnavailable: false, humanRequired: !!scheduling.complete,
       handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
       waitingForConfirmation: !!scheduling.complete };
   }
