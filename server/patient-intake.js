@@ -35,7 +35,7 @@ const requestedSlotValue = (text, question) => {
   if (labeled) return cleanValue(labeled[1]);
   const slotPattern = /(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/:]\d{2}\b|\b\d{1,2}\s*h\b/iu;
   const part = positionalAnswers(value).reverse().find((item) => slotPattern.test(item));
-  if (part) return part;
+  if (part) return part.match(slotPattern)?.[0];
   const slot = value.match(slotPattern);
   if (slot) return slot[0];
   return undefined;
