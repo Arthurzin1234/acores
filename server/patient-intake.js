@@ -33,10 +33,11 @@ const requestedSlotValue = (text, question) => {
   const value = String(text || "").trim();
   const labeled = value.match(/(?:melhor dia(?:\s+e\s+hor[aá]rio)?|dia|hor[aá]rio|disponibilidade|retorno)\s*(?:é|eh|e|:|-)?\s*([^,;\n]+)/iu);
   if (labeled) return cleanValue(labeled[1]);
-  const slotPattern = /\b(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)\b|\b\d{1,2}[/:]\d{2}\b|\b\d{1,2}\s*h\b/iu;
+  const slotPattern = /(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/:]\d{2}\b|\b\d{1,2}\s*h\b/iu;
   const part = positionalAnswers(value).reverse().find((item) => slotPattern.test(item));
   if (part) return part;
-  if (slotPattern.test(value)) return value;
+  const slot = value.match(slotPattern);
+  if (slot) return slot[0];
   return undefined;
 };
 
@@ -67,8 +68,7 @@ export function collectPatient(text, history, client = {}) {
   const species = speciesValue(text);
   if (species) patch.species = species;
   const groupedQuestion = /nome do tutor.*esp[eé]cie.*idade/iu.test(question);
-  const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) ||
-    (groupedQuestion && positionalAnswers(text).length >= 3)
+  const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) || groupedQuestion
     ? ageValue(text)
     : undefined;
   if (age) patch.pet_age = age;
@@ -78,6 +78,10 @@ export function collectPatient(text, history, client = {}) {
     const parts = positionalAnswers(text);
     if (parts.length >= 1 && validName(parts[0])) {
       patch.name = parts[0];
+    }
+    if (!patch.name && groupedQuestion) {
+      const firstWord = String(text || '').trim().match(/^([\p{L}][\p{L}'-]{0,59})\b/u)?.[1];
+      if (firstWord && validName(firstWord)) patch.name = firstWord;
     }
     if (!patch.pet_age) {
       const numericAge = parts.find((part) => /^\d{1,2}$/u.test(part));

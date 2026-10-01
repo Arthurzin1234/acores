@@ -47,3 +47,14 @@ test("the one-message scheduling questionnaire is complete without a pet name", 
   assert.equal(result.requestedSlot, "sábado às 10h");
   assert.equal(result.complete, true);
 });
+
+test("a compact form answer is understood without labels or line breaks", () => {
+  const result = collectPatient(
+    "Kamily gato 6 anos agendar amanhã",
+    history("Nome do tutor: Espécie do pet: Idade do pet: Melhor dia e horário para a recepção retornar:"),
+    {},
+  );
+  assert.deepEqual(result.patch, { name: "Kamily", species: "Felina", pet_age: "6 anos" });
+  assert.equal(result.requestedSlot, "amanhã");
+  assert.equal(result.complete, true);
+});
