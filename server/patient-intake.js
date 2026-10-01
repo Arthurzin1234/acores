@@ -1,41 +1,116 @@
 const normalize = (text) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
+const cleanValue = (value) => String(value || "")
+  .trim()
+  .replace(/^[,;:.!?-]+\s*/u, "")
+  .replace(/^(?:é|eh|e)\s+/iu, "")
+  .replace(/^(?:o nome (?:dele|dela|do meu pet|do pet|do tutor)|meu nome|meu pet|o pet|pet|tutor|respons[aá]vel)\s*(?:é|eh|e|:|-)\s*/iu, "")
+  .replace(/[.!?,]+$/u, "")
+  .trim();
+
+const validName = (value) => /^[\p{L}][\p{L}\s'-]{0,59}$/u.test(value) &&
+  value.split(/\s+/u).length <= 5 &&
+  !/^(nao|sim|oi|ola|nao sei|obrigad[oa])$/u.test(normalize(value));
+
+const labeledValue = (text, pattern) => cleanValue(String(text || "").match(pattern)?.[1]);
+
+const speciesValue = (text) => {
+  const value = normalize(text);
+  if (/\b(felin[ao]|gat[ao])\b/u.test(value)) return "Felina";
+  if (/\b(canin[ao]|cachorr[ao]|cao|cadela)\b/u.test(value)) return "Canina";
+  const other = value.match(/\b(coelho|coelha|ave|passaro|hamster|porquinho da india|tartaruga)\b/u);
+  return other ? other[1] : undefined;
+};
+
+const ageValue = (text) => {
+  const match = String(text || "").match(/(?:idade(?: do (?:seu )?pet)?|(?:ele|ela|o pet|meu pet)\s*(?:tem|possui))\s*(?:é|eh|e|:|-)?\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*(anos?|mes(?:es)?|dias?)\b/iu)
+    || String(text || "").match(/\b(\d{1,2}(?:[.,]\d{1,2})?)\s*(anos?|mes(?:es)?|dias?)\b/iu);
+  return match ? `${match[1]} ${match[2]}` : undefined;
+};
+
+const requestedSlotValue = (text, question) => {
+  if (!/dia|hor[aá]rio|disponibilidade|retorno|melhor hora/iu.test(`${question} ${text}`)) return undefined;
+  const value = String(text || "").trim();
+  const labeled = value.match(/(?:melhor dia(?:\s+e\s+hor[aá]rio)?|dia|hor[aá]rio|disponibilidade|retorno)\s*(?:é|eh|e|:|-)?\s*([^,;\n]+)/iu);
+  if (labeled) return cleanValue(labeled[1]);
+  const slotPattern = /\b(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)\b|\b\d{1,2}[/:]\d{2}\b|\b\d{1,2}\s*h\b/iu;
+  const part = positionalAnswers(value).reverse().find((item) => slotPattern.test(item));
+  if (part) return part;
+  if (slotPattern.test(value)) return value;
+  return undefined;
+};
+
+const positionalAnswers = (text) => String(text || "")
+  .split(/[\n;,]+/u)
+  .map((item) => cleanValue(item))
+  .filter(Boolean);
+
 export function collectPatient(text, history, client = {}) {
   const last = [...history].reverse().find((m) => m.direction === "outbound");
   const question = normalize(last?.body || "");
-  const value = text.trim().replace(/[.!]+$/, "");
+  const value = cleanValue(text);
   const patch = {};
   if (/\b(atendente|humano|recepcao|emergencia|urgente|socorro)\b/.test(normalize(value)))
     return { patch };
   let expected;
-  if (/nome do (seu )?pet/.test(question)) expected = "pet_name";
-  else if (/nome do tutor/.test(question)) expected = "name";
+  if (/nome do tutor/.test(question)) expected = "name";
+  else if (/nome do (seu )?pet/.test(question)) expected = "pet_name";
   else if (/especie do (seu )?pet/.test(question)) expected = "species";
   else if (/idade do (seu )?pet|idade em meses ou anos/.test(question)) expected = "pet_age";
-  if (!expected) return { patch };
 
-  if (["name", "pet_name"].includes(expected)) {
-    const name = value.replace(/^(?:meu nome [ée]|(?:o nome (?:dele|dela|do meu pet) [ée])|(?:ele|ela) se chama)\s+/i, "");
-    if (/^[\p{L}][\p{L}\s'-]{0,59}$/u.test(name) && name.split(/\s+/).length <= 5 &&
-        !/^(nao|sim|oi|ola|nao sei|obrigad[oa])$/.test(normalize(name))) patch[expected] = name;
-  } else if (expected === "species") {
-    const species = normalize(value).replace(/^(?:e |uma? )+/, "");
-    if (/^(felin[ao]|gat[ao])$/.test(species)) patch.species = "Felina";
-    else if (/^(canin[ao]|cachorr[ao]|cao|cadela)$/.test(species)) patch.species = "Canina";
-    else if (/^(coelho|coelha|ave|passaro|hamster|porquinho da india|tartaruga)$/.test(species)) patch.species = value;
-  } else {
-    const age = normalize(value).match(/^(?:tem |ela tem |ele tem )?(\d{1,2}(?:[.,]\d{1,2})?)\s*(anos?|mes(?:es)?|dias?)$/);
-    if (age) patch.pet_age = `${age[1]} ${age[2]}`;
+  // A resposta pode conter vários campos: "tutor Arthur, pet Ronaldo, cachorro, 3 anos".
+  // Extraímos os rótulos antes de usar a pergunta anterior como fallback.
+  const tutor = labeledValue(text, /(?:nome do tutor|nome do respons[aá]vel|tutor|respons[aá]vel)\s*(?:é|eh|e|:|-)\s*([^,;\n.!?]+)/iu);
+  const pet = labeledValue(text, /(?:nome do (?:seu )?pet|(?:meu )?pet)\s*(?:é|eh|e|:|-)\s*([^,;\n.!?]+)/iu);
+  if (tutor && validName(tutor)) patch.name = tutor;
+  if (pet && validName(pet)) patch.pet_name = pet;
+  const species = speciesValue(text);
+  if (species) patch.species = species;
+  const groupedQuestion = /nome do tutor.*esp[eé]cie.*idade/iu.test(question);
+  const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) ||
+    (groupedQuestion && positionalAnswers(text).length >= 3)
+    ? ageValue(text)
+    : undefined;
+  if (age) patch.pet_age = age;
+  const requestedSlot = requestedSlotValue(text, question);
+
+  if (expected === "name" && !patch.name) {
+    const parts = positionalAnswers(text);
+    if (parts.length >= 1 && validName(parts[0])) {
+      patch.name = parts[0];
+    }
+    if (!patch.pet_age) {
+      const numericAge = parts.find((part) => /^\d{1,2}$/u.test(part));
+      if (numericAge) patch.pet_age = `${numericAge} anos`;
+    }
   }
+
+  if (Object.keys(patch).length === 0 && expected && ["name", "pet_name"].includes(expected) && validName(value))
+    patch[expected] = value;
+  else if (Object.keys(patch).length === 0 && expected === "species") {
+    const speciesOnly = speciesValue(value);
+    if (speciesOnly) patch.species = speciesOnly;
+  } else if (Object.keys(patch).length === 0 && expected === "pet_age") {
+    const ageOnly = ageValue(value);
+    if (ageOnly) patch.pet_age = ageOnly;
+    else if (/^\d{1,2}$/u.test(value)) patch.pet_age = `${value} anos`;
+  }
+
+  if (!expected && Object.keys(patch).length === 0 && !requestedSlot) return { patch };
 
   const updated = { ...client, ...patch };
   let nextQuestion;
-  if (!patch[expected]) nextQuestion = {
+  if (expected && !patch[expected] && Object.keys(patch).length === 0) nextQuestion = {
     name: "Qual é o nome do tutor?", pet_name: "Qual é o nome do seu pet?",
     species: "Qual é a espécie do seu pet?", pet_age: "Qual é a idade do seu pet, em meses ou anos?",
   }[expected];
-  else if (!updated.pet_name) nextQuestion = "Qual é o nome do seu pet?";
+  else if (expected === "name" && !patch.name) nextQuestion = "Qual é o nome do tutor?";
   else if (!updated.species) nextQuestion = "Qual é a espécie do seu pet?";
   else if (!updated.pet_age) nextQuestion = "Qual é a idade do seu pet, em meses ou anos?";
-  return { patch, nextQuestion };
+  return {
+    patch,
+    nextQuestion,
+    requestedSlot,
+    complete: !!(updated.name && updated.species && updated.pet_age && requestedSlot),
+  };
 }

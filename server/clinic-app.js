@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { WebSocketServer } from "ws";
 import { buildHumanNotification } from "./ai.js";
 import { createAIConfig } from "./ai-config.js";
-import { createAIService } from "./ai-service.js";
+import { appendClientNote, createAIService, clinicInfoReply, isGreeting } from "./ai-service.js";
 import { createDatabase, sanitizePhone, seedDatabase } from "./db.js";
 import { WhatsAppConnector } from "./whatsapp.js";
 import { createClinicStore, registerClinicRoutes } from "./clinic.js";
@@ -385,12 +385,27 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     phone: normalizedPhone,
     name: existingClient?.name || name || undefined,
     ...intake.patch,
+    ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existingClient?.notes, text) } : {}),
   });
   if (!analysis.aiUnavailable && intake.nextQuestion && analysis.category !== "urgencia" &&
       !/\b(atendente|humano|emerg[eê]ncia|urgente)\b/i.test(text)) {
     analysis.reply = intake.nextQuestion;
     analysis.handoffComplete = false;
     analysis.waitingForClient = true;
+  }
+  if (!analysis.aiUnavailable && analysis.category !== "urgencia" &&
+      client.name && client.species && client.pet_age && !intake.requestedSlot && !intake.complete) {
+    analysis.reply = "📅 Qual dia e horário você prefere para marcar o atendimento?";
+    analysis.handoffComplete = false;
+    analysis.waitingForClient = true;
+  }
+  if (!analysis.aiUnavailable && intake.complete && analysis.category !== "urgencia") {
+    analysis.reply = "Tudo certo. A recepção continuará seu atendimento. 🐾";
+    analysis.handoffComplete = false;
+    analysis.waitingForClient = false;
+    analysis.waitingForConfirmation = true;
+    analysis.humanRequired = true;
+    if (intake.requestedSlot) analysis.summary = `${analysis.summary} Preferência informada: ${intake.requestedSlot}.`;
   }
   if (!analysis.aiUnavailable && activeTicket?.category === "urgencia" &&
       !/emerg[eê]ncia|urg[eê]ncia|atropel|convuls|envenen|n[aã]o respira|sem respirar|dor intensa/i.test(text) &&
@@ -418,7 +433,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
             ? analysis.priority
             : activeTicket.priority,
         human_required: activeTicket.human_required || analysis.humanRequired,
-        status: analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : activeTicket.status,
+        status: analysis.waitingForConfirmation ? "aguardando_cliente" : analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : activeTicket.status,
         ai_summary: mergeSummary(activeTicket.ai_summary, analysis.summary),
       })
     : store.createTicket({
@@ -428,7 +443,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
         category: analysis.category,
         priority: analysis.priority,
         human_required: analysis.humanRequired,
-        status: analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : "novo",
+        status: analysis.waitingForConfirmation ? "aguardando_cliente" : analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : "novo",
         ai_summary: analysis.summary,
         source,
       });
@@ -438,9 +453,9 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     author: client.name,
     body: text,
   });
-  if (analysis.handoffComplete) store.updateTicket(ticket.id, { ai_paused: true });
+  if (analysis.handoffComplete || analysis.waitingForConfirmation) store.updateTicket(ticket.id, { ai_paused: true });
   const replyMessage =
-    source === "whatsapp"
+    source === "whatsapp" || !analysis.reply
       ? null
       : store.addMessage(ticket.id, {
           direction: "outbound",
@@ -448,8 +463,10 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
           body: analysis.reply,
         });
 
-  if (analysis.aiUnavailable || !shouldReuse || (analysis.humanRequired && !activeTicket.human_required)) {
-    const notification = buildHumanNotification(client, ticket);
+  if (analysis.aiUnavailable || analysis.waitingForConfirmation || analysis.handoffComplete || !shouldReuse || (analysis.humanRequired && !activeTicket?.human_required)) {
+    const notification = (analysis.waitingForConfirmation || analysis.handoffComplete) && !analysis.aiUnavailable
+      ? { title: 'Atendimento pronto para confirmação', body: `Chamado #${ticket.id}: confira os dados e confirme se deve entrar na agenda.`, level: 'warning' }
+      : buildHumanNotification(client, ticket);
     store.createNotification({
       ticket_id: ticket.id,
       ...notification,

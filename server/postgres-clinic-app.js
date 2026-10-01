@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createPostgresDatabase } from './postgres-database.js';
 import { createPostgresClinicStore, registerPostgresClinicRoutes } from './postgres-clinic.js';
 import { createPostgresAIConfig } from './postgres-ai-config.js';
-import { createAIService } from './ai-service.js';
+import { appendClientNote, createAIService, clinicInfoReply, isGreeting } from './ai-service.js';
 import { createPostgresSecurity } from './postgres-security.js';
 import { collectPatient } from './patient-intake.js';
 import { buildHumanNotification } from './ai.js';
@@ -36,7 +36,8 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     const active = await db.findActiveTicket(phone);
     const history = active ? await db.listMessages(active.id) : [];
     const intake = collectPatient(text, history, existing || {});
-    const client = await db.upsertClient({ phone, name: existing?.name || name, ...intake.patch });
+    const client = await db.upsertClient({ phone, name: existing?.name || name, ...intake.patch,
+      ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existing?.notes, text) } : {}) });
     let ticket = active || await db.createTicket({ client_id: client.id, phone, subject: 'Novo atendimento', category: 'geral', priority: 'normal', source });
     const inboundMessage = await db.addMessage(ticket.id, { direction: 'inbound', author: client.name, body: text, externalId: messageId ? `whatsapp:${messageId}` : null });
     if (inboundMessage.inserted !== false)
@@ -46,13 +47,42 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
       return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
+    if (!analysis.aiUnavailable && intake.nextQuestion && analysis.category !== 'urgencia' &&
+        !/\b(atendente|humano|emerg[eê]ncia|urgente)\b/i.test(text)) {
+      analysis.reply = intake.nextQuestion;
+      analysis.handoffComplete = false;
+      analysis.waitingForClient = true;
+    }
+    if (!analysis.aiUnavailable && intake.complete && analysis.category !== 'urgencia') {
+      analysis.reply = 'Tudo certo. A recepção continuará seu atendimento. 🐾';
+      analysis.handoffComplete = false;
+      analysis.waitingForClient = false;
+      analysis.waitingForConfirmation = true;
+      analysis.humanRequired = true;
+      if (intake.requestedSlot) analysis.summary = `${analysis.summary} Preferência informada: ${intake.requestedSlot}.`;
+    }
+    if (!analysis.aiUnavailable && analysis.category !== 'urgencia' &&
+        client.name && client.species && client.pet_age && !intake.requestedSlot && !intake.complete) {
+      analysis.reply = '📅 Qual dia e horário você prefere para marcar o atendimento?';
+      analysis.handoffComplete = false;
+      analysis.waitingForClient = true;
+    }
+    const wasHumanRequired = !!ticket.human_required;
     ticket = await db.updateTicket(ticket.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority,
-      status: analysis.handoffComplete ? 'em_atendimento' : analysis.waitingForClient ? 'aguardando_cliente' : ticket.status,
+      status: analysis.waitingForConfirmation ? 'aguardando_cliente' : analysis.handoffComplete ? 'em_atendimento' : analysis.waitingForClient ? 'aguardando_cliente' : ticket.status,
       human_required: ticket.human_required || analysis.humanRequired,
-      ai_paused: ticket.ai_paused || !!analysis.handoffComplete, ai_summary: analysis.summary });
+      ai_paused: ticket.ai_paused || !!analysis.handoffComplete || !!analysis.waitingForConfirmation, ai_summary: analysis.summary });
     broadcast();
-    const message = source === 'whatsapp' ? null : await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: analysis.reply });
-    if (analysis.humanRequired) await db.createNotification({ ticket_id: ticket.id, ...buildHumanNotification(client, ticket), ...(analysis.aiUnavailable ? { title: 'IA indisponível', level: 'warning' } : {}) });
+    const message = source === 'whatsapp' || !analysis.reply
+      ? null
+      : await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body: analysis.reply });
+    if (analysis.aiUnavailable || analysis.waitingForConfirmation || analysis.handoffComplete || (analysis.humanRequired && !wasHumanRequired)) {
+      const notification = (analysis.waitingForConfirmation || analysis.handoffComplete) && !analysis.aiUnavailable
+        ? { title: 'Atendimento pronto para confirmação', body: `Chamado #${ticket.id}: confira os dados e confirme se deve entrar na agenda.`, level: 'warning' }
+        : buildHumanNotification(client, ticket);
+      await db.createNotification({ ticket_id: ticket.id, ...notification, ...(analysis.aiUnavailable ? { title: 'IA indisponível', body: `Chamado #${ticket.id} transferido à recepção. Confira o contato e as últimas mensagens na conversa.`, level: 'warning' } : {}) });
+      broadcast();
+    }
     if (analysis.reply) await conversationMemory.append(phone, { direction: 'outbound', author: 'Açores IA', body: analysis.reply }).catch(() => {});
     return { ticket: await db.getTicket(ticket.id), client, reply: analysis.reply, message, aiProvider: analysis.aiProvider };
   };

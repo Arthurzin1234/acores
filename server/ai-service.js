@@ -3,7 +3,8 @@ import { requestDecision } from "./ai-providers.js";
 import { createHash } from 'node:crypto';
 import { classify, failure, positiveInt, safeLog } from './reliability.js';
 
-export const AI_UNAVAILABLE_REPLY = 'Olá! No momento vou chamar um atendente humano para continuar seu atendimento 😉';
+// Keep the incident internal: a provider outage must never look like a bot reply.
+export const AI_UNAVAILABLE_REPLY = null;
 
 export function decorateReply(reply, category) {
   if (!reply || /🐶|🐾/u.test(reply)) return reply;
@@ -12,7 +13,7 @@ export function decorateReply(reply, category) {
 }
 
 export const QUESTIONS = {
-  tutor: "Qual é o nome do tutor?",
+  tutor: "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊",
   pet: "Qual é o nome do seu pet?",
   species: "Qual é a espécie do seu pet?",
   age: "Qual é a idade do seu pet?",
@@ -23,15 +24,42 @@ export const QUESTIONS = {
 };
 const HANDOFF =
   "A recepção vai confirmar essa informação e continuar o atendimento.";
+const combinedQuestion = (service) =>
+  `🐶 **Me passa algumas informações sobre ${service}, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊`;
 const normalized = (value) =>
   String(value || "")
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
+export function clinicInfoReply(text, settings = {}) {
+  const value = normalized(text);
+  const answers = [];
+  if (/enderec|localiza|como chegar|onde (?:fica|voc)/u.test(value)) {
+    answers.push(settings.address?.trim()
+      ? `Endereço: ${settings.address.trim()}.\nMaps: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address.trim())}`
+      : 'A recepção confirmará o endereço da unidade.');
+  }
+  if (/telefone|whatsapp|numero para contato/u.test(value))
+    answers.push(settings.phone?.trim() ? `Telefone: ${settings.phone.trim()}` : 'A recepção confirmará o telefone de contato.');
+  if (/horario|que horas|abre|fecha|funciona/u.test(value))
+    answers.push(settings.is24Hours === false ? 'A recepção confirmará os horários de atendimento.' : 'Atendemos 24 horas por dia.');
+  if (/plant[aã]o|24\s*h|vinte e quatro horas/u.test(value))
+    answers.push(settings.is24Hours === false ? 'A recepção confirmará a disponibilidade de plantão.' : 'Temos plantão 24 horas.');
+  return answers.length ? answers.join('\n') : null;
+}
+
 export function isGreeting(value) {
   const text = normalized(value).trim().replace(/\s+/gu, " ");
   return /^(?:(?:o+i+|ol+a+|e\s*ai|hey|hello)(?:[!,\s]+(?:tudo bem|tudo certo))?|bom dia|boa tarde|boa noite|obrigad[oa]|tudo bem|tudo certo|como vai|como voce (?:esta|ta))[!.?,\s]*$/u.test(text);
+}
+
+export function appendClientNote(current, text) {
+  const report = String(text || '').trim();
+  if (!report) return current || null;
+  const entry = `Relato via WhatsApp: ${report}`;
+  if (String(current || '').includes(entry)) return current;
+  return [current, entry].filter(Boolean).join('\n').slice(-4000);
 }
 
 export function approvedCatalog(settings, knowledge) {
@@ -79,12 +107,21 @@ export function renderDecision(
   // Keep obvious service requests usable when a provider returns a vague label.
   // The model still chooses the question and approved answer; this only prevents
   // a clear banho/consulta/orcamento request from becoming an unnecessary handoff.
-  if (!rule.humanRequired && !medical && serviceCategory && intent === 'other') {
-    intent = rule.category === 'orcamento' ? 'information' : 'appointment';
+  if (!rule.humanRequired && !medical && !isGreeting(text) && serviceCategory && !['surgery', 'emergency', 'information'].includes(intent)) {
+    intent = 'appointment';
     decision = { ...decision, needsHuman: false, question: decision.question === 'none' ? 'tutor' : decision.question };
+  }
+  if (!rule.humanRequired && !medical && !isGreeting(text) && intent === 'human') {
+    intent = 'appointment';
+    decision = { ...decision, needsHuman: false, question: 'tutor' };
   }
   const catalog = approvedCatalog(settings, knowledge);
   const question = QUESTIONS[decision.question];
+  const hasIntakeQuestion = history.some((m) => m.direction === "outbound" &&
+    /nome do tutor|esp[eé]cie do (?:seu )?pet|idade do (?:seu )?pet/iu.test(m.body));
+  const selectedQuestion = (intent === "surgery" || intent === "appointment") && !hasIntakeQuestion
+    ? combinedQuestion(intent === "surgery" ? "cirurgia" : rule.category === "banho_tosa" ? "banho e tosa" : "atendimento")
+    : question;
   const announced = history.some((m) => m.direction === "outbound" &&
     /encaminhar|recepção.*continu|recepção.*confirm/i.test(m.body));
   const base = {
@@ -125,10 +162,10 @@ export function renderDecision(
       humanRequired: true,
       summary:
         "Solicitação cirúrgica encaminhada à recepção. Procedimento e agenda dependem de confirmação humana.",
-      handoffComplete: !question,
-      waitingForClient: !!question,
-      reply: question
-        ? `${announced ? "" : "Vou encaminhar o caso à recepção. "}${question}`
+      handoffComplete: !selectedQuestion,
+      waitingForClient: !!selectedQuestion,
+      reply: selectedQuestion
+        ? `${announced ? "" : "Vou encaminhar o caso à recepção. "}${selectedQuestion}`
         : "Tudo certo. A recepção continuará seu atendimento.",
     };
   if (intent === "information") {
@@ -140,6 +177,7 @@ export function renderDecision(
         summary: `Resposta aprovada consultada: ${fact.question}`,
         reply: fact.answer,
       };
+    if (!decision.needsHuman) intent = 'appointment';
   }
   if (intent === "greeting" && !decision.needsHuman)
     return {
@@ -152,14 +190,22 @@ export function renderDecision(
       ...base,
       category: rule.category === "banho_tosa" ? "banho_tosa" : "consulta",
       subject: "Solicitação de agendamento",
-      humanRequired: decision.needsHuman || !question,
+      humanRequired: decision.needsHuman || !selectedQuestion,
       summary:
         "Solicitação de agendamento. Nenhum horário confirmado automaticamente.",
-      handoffComplete: !question,
-      waitingForClient: !!question,
-      reply: question
-        ? `${announced ? "" : "A recepção confirmará a disponibilidade. "}${question}`
+      handoffComplete: !selectedQuestion,
+      waitingForClient: !!selectedQuestion,
+      reply: selectedQuestion
+        ? `${announced ? "" : "A recepção confirmará a disponibilidade. "}${selectedQuestion}`
         : "Tudo certo. A recepção continuará seu atendimento.",
+    };
+  if (!rule.humanRequired && !medical && !isGreeting(text))
+    return {
+      ...base,
+      category: 'geral', subject: 'Solicitação para a recepção',
+      summary: `Relato registrado para a recepção: ${String(text || '').trim().slice(0, 500)}`,
+      waitingForClient: true, handoffComplete: false,
+      reply: combinedQuestion('atendimento'),
     };
   return {
     ...base,
@@ -218,7 +264,7 @@ export function createAIService(
   }
   const unavailable = async () => ({ category: 'geral', subject: 'IA indisponível', priority: 'alta',
     humanRequired: true, handoffComplete: true, aiUnavailable: true, summary: 'IA indisponível',
-    reply: AI_UNAVAILABLE_REPLY, aiProvider: (await config.snapshot()).provider });
+    reply: null, aiProvider: (await config.snapshot()).provider });
   return {
     snapshot: () => ({ ...runtime, checks: { ...checks } }),
     resetChecks() {
@@ -227,6 +273,13 @@ export function createAIService(
     async analyze(text, history = [], signal) {
       const saved = await config.snapshot();
       const settings = await getSettings();
+      const directInfo = clinicInfoReply(text, settings);
+      if (directInfo) return {
+        category: 'informacao', subject: 'Informação da clínica', priority: 'normal',
+        humanRequired: false, handoffComplete: false, waitingForClient: false,
+        summary: 'Informação institucional enviada automaticamente.', reply: decorateReply(directInfo, 'geral'),
+        aiProvider: 'rules',
+      };
       const rule = analyzeMessage(text);
       let decision = {
         intent: "other",

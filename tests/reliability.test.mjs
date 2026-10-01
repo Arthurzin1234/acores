@@ -170,12 +170,12 @@ test('AI timeout gives exactly the approved handoff; circuit breaker bounds retr
     return { intent: 'greeting', answerId: '', question: 'need', needsHuman: false };
   }, { timeoutMs: 20, now: () => time });
   const first = await ai.analyze('Quero saber o preço');
-  assert.equal(first.reply, AI_UNAVAILABLE_REPLY); assert.equal(first.handoffComplete, true);
+  assert.equal(first.reply, null); assert.equal(first.handoffComplete, true);
   assert.equal(first.summary, 'IA indisponível');
-  assert.equal((await ai.analyze('outra mensagem')).reply, AI_UNAVAILABLE_REPLY);
+  assert.equal((await ai.analyze('outra mensagem')).reply, null);
   assert.equal(attempts, 1); assert.equal(ai.snapshot().available, false);
   time += 60000; available = true;
-  assert.notEqual((await ai.analyze('Olá')).reply, AI_UNAVAILABLE_REPLY);
+  assert.notEqual((await ai.analyze('Olá')).reply, null);
   assert.equal(attempts, 2); assert.equal(ai.snapshot().available, true);
 });
 
