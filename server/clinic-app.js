@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { WebSocketServer } from "ws";
 import { buildHumanNotification } from "./ai.js";
 import { createAIConfig } from "./ai-config.js";
-import { appendClientNote, createAIService, clinicInfoReply, isGreeting } from "./ai-service.js";
+import { appendClientNote, createAIService, clinicInfoReply, isGreeting, QUESTIONS } from "./ai-service.js";
 import { createDatabase, sanitizePhone, seedDatabase } from "./db.js";
 import { WhatsAppConnector } from "./whatsapp.js";
 import { createClinicStore, registerClinicRoutes } from "./clinic.js";
@@ -387,15 +387,9 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     ...intake.patch,
     ...(!clinicInfoReply(text, { is24Hours: true }) && !isGreeting(text) ? { notes: appendClientNote(existingClient?.notes, text) } : {}),
   });
-  if (!analysis.aiUnavailable && intake.nextQuestion && analysis.category !== "urgencia" &&
-      !/\b(atendente|humano|emerg[eê]ncia|urgente)\b/i.test(text)) {
-    analysis.reply = intake.nextQuestion;
-    analysis.handoffComplete = false;
-    analysis.waitingForClient = true;
-  }
-  if (!analysis.aiUnavailable && analysis.category !== "urgencia" &&
-      client.name && client.species && client.pet_age && !intake.requestedSlot && !intake.complete) {
-    analysis.reply = "📅 Qual dia e horário você prefere para marcar o atendimento?";
+  const intakeFormWasSent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
+  if (!analysis.aiUnavailable && intakeFormWasSent && !intake.complete && analysis.category !== "urgencia") {
+    analysis.reply = QUESTIONS.tutor;
     analysis.handoffComplete = false;
     analysis.waitingForClient = true;
   }

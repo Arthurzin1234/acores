@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createPostgresDatabase } from './postgres-database.js';
 import { createPostgresClinicStore, registerPostgresClinicRoutes } from './postgres-clinic.js';
 import { createPostgresAIConfig } from './postgres-ai-config.js';
-import { appendClientNote, createAIService, clinicInfoReply, isGreeting } from './ai-service.js';
+import { appendClientNote, createAIService, clinicInfoReply, isGreeting, QUESTIONS } from './ai-service.js';
 import { createPostgresSecurity } from './postgres-security.js';
 import { collectPatient } from './patient-intake.js';
 import { buildHumanNotification } from './ai.js';
@@ -47,9 +47,10 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
       return { ticket: await db.getTicket(ticket.id), client, reply: null, message: null, inboundMessage, aiPaused: true };
     const cloudHistory = conversationMemory.enabled ? await conversationMemory.list(phone).catch(() => []) : [];
     const analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
-    if (!analysis.aiUnavailable && intake.nextQuestion && analysis.category !== 'urgencia' &&
-        !/\b(atendente|humano|emerg[eê]ncia|urgente)\b/i.test(text)) {
-      analysis.reply = intake.nextQuestion;
+    const intakeFormWasSent = (cloudHistory.length ? cloudHistory : history)
+      .some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
+    if (!analysis.aiUnavailable && intakeFormWasSent && !intake.complete && analysis.category !== 'urgencia') {
+      analysis.reply = QUESTIONS.tutor;
       analysis.handoffComplete = false;
       analysis.waitingForClient = true;
     }
@@ -60,12 +61,6 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
       analysis.waitingForConfirmation = true;
       analysis.humanRequired = true;
       if (intake.requestedSlot) analysis.summary = `${analysis.summary} Preferência informada: ${intake.requestedSlot}.`;
-    }
-    if (!analysis.aiUnavailable && analysis.category !== 'urgencia' &&
-        client.name && client.species && client.pet_age && !intake.requestedSlot && !intake.complete) {
-      analysis.reply = '📅 Qual dia e horário você prefere para marcar o atendimento?';
-      analysis.handoffComplete = false;
-      analysis.waitingForClient = true;
     }
     const wasHumanRequired = !!ticket.human_required;
     ticket = await db.updateTicket(ticket.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority,
