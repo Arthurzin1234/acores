@@ -48,7 +48,7 @@ const positionalAnswers = (text) => String(text || "")
 
 const dateValue = (text) => String(text || "").match(/(?:hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/iu)?.[0];
 const timeValue = (text) => String(text || "").match(/\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b/iu)?.[0];
-export const INITIAL_INTAKE_FORM = "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊";
+export const INITIAL_INTAKE_FORM = "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Nome do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊";
 
 const serviceValue = (text) => {
   const value = normalize(text);

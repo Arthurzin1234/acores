@@ -13,7 +13,7 @@ export function decorateReply(reply, category) {
 }
 
 export const QUESTIONS = {
-  tutor: "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊",
+  tutor: "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Nome do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊",
   pet: "Qual é o nome do seu pet?",
   species: "Qual é a espécie do seu pet?",
   age: "Qual é a idade do seu pet?",
@@ -25,7 +25,7 @@ export const QUESTIONS = {
 const HANDOFF =
   "A recepção vai confirmar essa informação e continuar o atendimento.";
 const combinedQuestion = (service) =>
-  `🐶 **Me passa algumas informações sobre ${service}, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊`;
+  `🐶 **Me passa algumas informações sobre ${service}, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Nome do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊`;
 const normalized = (value) =>
   String(value || "")
     .normalize("NFD")

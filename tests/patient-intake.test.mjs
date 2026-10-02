@@ -94,6 +94,7 @@ test("an unnamed tutor receives the form even if the phone has old pet data", ()
     name: 'Cliente sem nome', pet_name: 'Nina', species: 'Felina', pet_age: '4 anos',
   });
   assert.match(step.reply, /Me passa algumas informações/);
+  assert.match(step.reply, /Nome do pet/);
 });
 
 test("a registered tutor is told that only the missing detail is needed", () => {
