@@ -117,10 +117,14 @@ export function renderDecision(
   }
   const catalog = approvedCatalog(settings, knowledge);
   const question = QUESTIONS[decision.question];
+  const hasCurrentIntakeForm = history.some((m) => m.direction === "outbound" &&
+    /me passa algumas informa[cç][oõ]es/iu.test(m.body));
   const hasIntakeQuestion = history.some((m) => m.direction === "outbound" &&
     /nome do tutor|esp[eé]cie do (?:seu )?pet|idade do (?:seu )?pet/iu.test(m.body));
-  const selectedQuestion = (intent === "surgery" || intent === "appointment") && !hasIntakeQuestion
-    ? combinedQuestion(intent === "surgery" ? "cirurgia" : rule.category === "banho_tosa" ? "banho e tosa" : "atendimento")
+  const selectedQuestion = intent === "surgery" && !hasCurrentIntakeForm
+    ? QUESTIONS.tutor
+    : intent === "appointment" && !hasIntakeQuestion
+      ? combinedQuestion(rule.category === "banho_tosa" ? "banho e tosa" : "atendimento")
     : question;
   const announced = history.some((m) => m.direction === "outbound" &&
     /encaminhar|recepção.*continu|recepção.*confirm/i.test(m.body));

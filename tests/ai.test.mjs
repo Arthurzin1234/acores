@@ -83,6 +83,7 @@ test("emergencies override surgery and use only the registered address", () => {
 
 test("surgery questions are concise and completion pauses the assistant", () => {
   const first = renderDecision({ intent: "surgery", question: "tutor", needsHuman: true }, { text: "castração" });
+  assert.match(first.reply, /Me passa algumas informações/);
   assert.match(first.reply, /encaminhar/);
   const history = [{ direction: "outbound", body: first.reply }];
   const next = renderDecision({ intent: "surgery", question: "pet", needsHuman: true }, { text: "Kamily", history });
