@@ -111,7 +111,7 @@ test("topic changes and follow-ups reuse an open conversation", async () => {
       database.prepare("UPDATE ai_settings SET provider='gemini',gemini_secret=NULL WHERE id=1").run();
       await fetch(`${origin}/api/tickets/${complete.ticket.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolvido' }) });
       const unavailable = await send('Quero informações sobre castração');
-      assert.equal(unavailable.reply, 'Qual é o nome do seu pet?');
+      assert.match(unavailable.reply, /Como já possuímos.*Qual é o nome do seu pet/);
       assert.equal(unavailable.ticket.ai_paused, 0);
       assert.equal((await send('Hanna')).reply, 'Qual dia você gostaria de agendar?');
       database.prepare("UPDATE ai_settings SET provider='rules' WHERE id=1").run();

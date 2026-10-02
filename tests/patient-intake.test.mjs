@@ -73,9 +73,9 @@ test("a multiline WhatsApp form answer is completed in one response", () => {
 test("scheduling asks only for the missing date and time of a registered client", () => {
   const client = { name: 'Roger', pet_name: 'Bob', species: 'Canina', pet_age: '7 anos' };
   const first = schedulingStep('Quero agendar uma consulta', [], client);
-  assert.equal(first.reply, 'Qual dia você gostaria de agendar?');
+  assert.match(first.reply, /Como já possuímos.*Qual dia você gostaria de agendar/);
   const day = schedulingStep('Amanhã', [{ direction: 'inbound', body: 'Quero agendar uma consulta' }], client);
-  assert.equal(day.reply, 'Qual horário você prefere?');
+  assert.match(day.reply, /Como já possuímos.*Qual horário você prefere/);
   const complete = schedulingStep('14:00', [{ direction: 'inbound', body: 'Quero agendar uma consulta' }, { direction: 'inbound', body: 'Amanhã' }], client);
   assert.equal(complete.complete, true);
   assert.match(complete.summary, /Data desejada: Amanhã/);
@@ -86,7 +86,7 @@ test("surgery gathers one missing datum at a time", () => {
   const first = schedulingStep('Quero marcar uma castração', [], { name: 'Cliente sem nome' });
   assert.match(first.reply, /Me passa algumas informações/);
   const pet = schedulingStep('Bob', [{ direction: 'inbound', body: 'Quero marcar uma castração' }, { direction: 'outbound', body: 'Me passa algumas informações, por favor?' }, { direction: 'inbound', body: 'Roger' }], { name: 'Roger' });
-  assert.equal(pet.reply, 'Qual é o nome do seu pet?');
+  assert.match(pet.reply, /Como já possuímos.*Qual é o nome do seu pet/);
 });
 
 test("an unnamed tutor receives the form even if the phone has old pet data", () => {
@@ -94,6 +94,13 @@ test("an unnamed tutor receives the form even if the phone has old pet data", ()
     name: 'Cliente sem nome', pet_name: 'Nina', species: 'Felina', pet_age: '4 anos',
   });
   assert.match(step.reply, /Me passa algumas informações/);
+});
+
+test("a registered tutor is told that only the missing detail is needed", () => {
+  const step = schedulingStep('Quero agendar uma castração', [], {
+    id: 12, name: 'Arthur', pet_name: 'Remela', species: 'Felina', pet_age: null,
+  });
+  assert.equal(step.reply, 'Como já possuímos algumas das suas informações, preciso apenas saber: Qual é a idade do seu pet, em meses ou anos?');
 });
 
 test("a simple greeting never resumes an old scheduling flow", () => {

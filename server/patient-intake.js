@@ -71,6 +71,12 @@ export function schedulingStep(text, history = [], client = {}) {
   const lastQuestion = normalize([...history].reverse().find((message) => message.direction === 'outbound')?.body || '');
   const current = collectPatient(text, history, {});
   const patient = { ...client, ...current.patch };
+  const knownClient = !!(client.name && client.name !== 'Cliente sem nome');
+  const alreadyGuided = history.some((message) => message.direction === 'outbound' &&
+    /como j[aá] possu[ií]mos algumas das suas informa[cç][oõ]es|qual [ée] o nome|qual dia|qual hor[aá]rio/iu.test(message.body));
+  const ask = (question) => knownClient && !alreadyGuided
+    ? `Como já possuímos algumas das suas informações, preciso apenas saber: ${question}`
+    : question;
   const registered = !!(client.pet_name || client.species || client.pet_age);
   const tutorValue = registered ? client.name : patient.name;
   const tutor = tutorValue === 'Cliente sem nome' ? null : tutorValue;
@@ -91,11 +97,11 @@ export function schedulingStep(text, history = [], client = {}) {
       ['time', desiredTime, 'Qual horário você prefere?'],
     ];
     const missing = steps.find(([, value]) => !value);
-    if (missing) return { reply: missing[2], waitingForClient: true, category: 'cirurgia', subject: `Solicitação de ${service.name}`, surgery: true };
+    if (missing) return { reply: ask(missing[2]), waitingForClient: true, category: 'cirurgia', subject: `Solicitação de ${service.name}`, surgery: true };
   } else {
     const category = service.name === 'Banho e tosa' ? 'banho_tosa' : 'consulta';
-    if (!desiredDate) return { reply: 'Qual dia você gostaria de agendar?', waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
-    if (!desiredTime) return { reply: 'Qual horário você prefere?', waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
+    if (!desiredDate) return { reply: ask('Qual dia você gostaria de agendar?'), waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
+    if (!desiredTime) return { reply: ask('Qual horário você prefere?'), waitingForClient: true, category, subject: `Agendamento de ${service.name}` };
   }
   return {
     reply: 'Pedido recebido. A recepção confirmará a disponibilidade para você.',
