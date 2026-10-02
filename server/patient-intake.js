@@ -10,7 +10,7 @@ const cleanValue = (value) => String(value || "")
 
 const validName = (value) => /^[\p{L}][\p{L}\s'-]{0,59}$/u.test(value) &&
   value.split(/\s+/u).length <= 5 &&
-  !/^(nao|sim|oi|ola|nao sei|obrigad[oa])$/u.test(normalize(value));
+  !/^(nao|sim|oi|ola|nao sei|obrigad[oa]|meu|minha|pet|tutor)$/u.test(normalize(value));
 
 const labeledValue = (text, pattern) => cleanValue(String(text || "").match(pattern)?.[1]);
 
@@ -48,6 +48,7 @@ const positionalAnswers = (text) => String(text || "")
 
 const dateValue = (text) => String(text || "").match(/(?:hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/iu)?.[0];
 const timeValue = (text) => String(text || "").match(/\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b/iu)?.[0];
+export const INITIAL_INTAKE_FORM = "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊";
 
 const serviceValue = (text) => {
   const value = normalize(text);
@@ -76,6 +77,10 @@ export function schedulingStep(text, history = [], client = {}) {
   const desiredDate = dateValue(inbound);
   const desiredTime = timeValue(inbound);
   if (service.surgery) {
+    const formAlreadySent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
+    const hasPatientDetails = !!(tutor || patient.pet_name || patient.species || patient.pet_age);
+    if (!formAlreadySent && !hasPatientDetails)
+      return { reply: INITIAL_INTAKE_FORM, waitingForClient: true, category: 'cirurgia', subject: `Solicitação de ${service.name}`, surgery: true };
     const steps = [
       ['name', tutor, 'Qual é o nome do tutor?'],
       ['pet_name', patient.pet_name, 'Qual é o nome do seu pet?'],

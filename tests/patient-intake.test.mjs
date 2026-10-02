@@ -84,8 +84,8 @@ test("scheduling asks only for the missing date and time of a registered client"
 
 test("surgery gathers one missing datum at a time", () => {
   const first = schedulingStep('Quero marcar uma castração', [], { name: 'Cliente sem nome' });
-  assert.equal(first.reply, 'Qual é o nome do tutor?');
-  const pet = schedulingStep('Bob', [{ direction: 'inbound', body: 'Quero marcar uma castração' }, { direction: 'outbound', body: 'Qual é o nome do tutor?' }, { direction: 'inbound', body: 'Roger' }], { name: 'Roger' });
+  assert.match(first.reply, /Me passa algumas informações/);
+  const pet = schedulingStep('Bob', [{ direction: 'inbound', body: 'Quero marcar uma castração' }, { direction: 'outbound', body: 'Me passa algumas informações, por favor?' }, { direction: 'inbound', body: 'Roger' }], { name: 'Roger' });
   assert.equal(pet.reply, 'Qual é o nome do seu pet?');
 });
 
