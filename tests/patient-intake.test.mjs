@@ -89,6 +89,13 @@ test("surgery gathers one missing datum at a time", () => {
   assert.equal(pet.reply, 'Qual é o nome do seu pet?');
 });
 
+test("an unnamed tutor receives the form even if the phone has old pet data", () => {
+  const step = schedulingStep('Quero agendar uma castração', [], {
+    name: 'Cliente sem nome', pet_name: 'Nina', species: 'Felina', pet_age: '4 anos',
+  });
+  assert.match(step.reply, /Me passa algumas informações/);
+});
+
 test("a simple greeting never resumes an old scheduling flow", () => {
   const step = schedulingStep('ola', [
     { direction: 'inbound', body: 'Quero marcar uma castração' },

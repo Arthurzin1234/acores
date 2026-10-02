@@ -78,8 +78,9 @@ export function schedulingStep(text, history = [], client = {}) {
   const desiredTime = timeValue(inbound);
   if (service.surgery) {
     const formAlreadySent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
-    const hasPatientDetails = !!(tutor || patient.pet_name || patient.species || patient.pet_age);
-    if (!formAlreadySent && !hasPatientDetails)
+    // A phone number with leftover pet fields is not a confirmed tutor record.
+    // Until the tutor's name is known, always start surgery intake with the form.
+    if (!formAlreadySent && !tutor)
       return { reply: INITIAL_INTAKE_FORM, waitingForClient: true, category: 'cirurgia', subject: `Solicitação de ${service.name}`, surgery: true };
     const steps = [
       ['name', tutor, 'Qual é o nome do tutor?'],
