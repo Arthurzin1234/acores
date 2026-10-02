@@ -44,8 +44,8 @@ test("clear service requests stay appointments when the provider returns other",
   const ai = createAIService(config, () => ({ name: "Centro Veterinário dos Açores" }), async () => ({
     intent: "other", answerId: "", question: "tutor", needsHuman: true,
   }));
-  const result = await ai.analyze("Olá, quero marcar um banho");
-  assert.equal(result.category, "banho_tosa");
+  const result = await ai.analyze("Olá, quero marcar uma consulta");
+  assert.equal(result.category, "consulta");
   assert.equal(result.humanRequired, false);
   assert.match(result.reply, /nome do tutor/iu);
 });
@@ -58,6 +58,17 @@ test("clinic hours bypass a pending intake form", async () => {
   const result = await ai.analyze("vocês trabalham 24horas?", [{ direction: "outbound", body: "Me passa algumas informações, por favor?" }]);
   assert.equal(result.directInfo, true);
   assert.match(result.reply, /24 horas/iu);
+});
+
+test("bath and grooming questions go to the dedicated WhatsApp", async () => {
+  const ai = createAIService(
+    { snapshot: () => ({ provider: "rules", knowledge: [] }), credentials: () => ({ key: "", model: "" }) },
+    () => ({ name: "Centro Veterinário dos Açores" }),
+  );
+  const result = await ai.analyze("Quero marcar banho e tosa");
+  assert.equal(result.directInfo, true);
+  assert.match(result.reply, /\(51\) 98200-5250/);
+  assert.match(result.reply, /wa\.me\/5551982005250/);
 });
 
 const decision = {

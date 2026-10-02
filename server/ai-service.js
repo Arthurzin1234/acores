@@ -35,6 +35,8 @@ const normalized = (value) =>
 export function clinicInfoReply(text, settings = {}) {
   const value = normalized(text);
   const answers = [];
+  if (/banho|tosa|higien/.test(value))
+    answers.push('🐾 Para informações e agendamentos de banho e tosa, fale diretamente com nossa equipe:\n📞 WhatsApp: (51) 98200-5250\n👉 https://wa.me/5551982005250\n\nSerá um prazer cuidar do seu pet! 🐶✨');
   if (/enderec|localiza|como chegar|onde (?:fica|voc)/u.test(value)) {
     answers.push(settings.address?.trim()
       ? `Endereço: ${settings.address.trim()}.\nMaps: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address.trim())}`
