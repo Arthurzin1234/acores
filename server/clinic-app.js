@@ -244,6 +244,51 @@ app.post("/api/tickets/:id/messages", async (req, res) => {
   res.status(201).json({ message, delivery });
 });
 
+const RESCHEDULE_WINDOW_MS = 24 * 60 * 60 * 1000;
+app.post("/api/tickets/:id/decline-appointment", async (req, res) => {
+  const ticket = store.getTicket(Number(req.params.id));
+  if (!ticket)
+    return res.status(404).json({ error: "Chamado nao encontrado." });
+  const requestedAt = Date.parse(ticket.confirmation_requested_at || ticket.updated_at || "");
+  const withinWindow = Number.isFinite(requestedAt) && Date.now() - requestedAt < RESCHEDULE_WINDOW_MS;
+  const canMessage = withinWindow && whatsapp.status.connected && whatsapp.policy.account;
+  if (!canMessage) {
+    const handed = store.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+    whatsapp.setHumanPaused(ticket.phone, true);
+    broadcast("ticket_updated", handed);
+    broadcast("dashboard", dashboardPayload());
+    return res.json({
+      messaged: false,
+      reason: withinWindow
+        ? "WhatsApp desconectado: o cliente nao foi avisado e o chamado foi para a equipe."
+        : "Passaram mais de 24 horas do pedido: o cliente nao foi contactado e o chamado foi para a equipe.",
+      ticket: handed,
+    });
+  }
+  const when = [ticket.desired_date, ticket.desired_time].filter(Boolean).join(" às ");
+  const body = `Olá! Infelizmente não temos disponibilidade para ${when || "o dia solicitado"}. 😔 Gostaria de reagendar para outro dia ou horário? Me diga uma nova preferência que eu já verifico para você. 🐾`;
+  const message = whatsapp.queue.transaction(() => {
+    const saved = store.addMessage(ticket.id, { direction: "outbound", author: assistantName, body });
+    store.updateTicket(ticket.id, {
+      status: "aguardando_cliente", ai_paused: false, human_required: false,
+      desired_date: null, desired_time: null, confirmation_requested_at: null,
+    });
+    whatsapp.setHumanPaused(ticket.phone, false);
+    return saved;
+  });
+  let delivery = { delivered: false, reason: "Mensagem registrada no painel." };
+  try {
+    delivery = await whatsapp.sendText(ticket.phone, body, { id: `decline:${message.id}`, ticketId: ticket.id });
+  } catch {
+    delivery = { delivered: false, reason: "O WhatsApp não confirmou o envio. A mensagem ficou registrada no painel." };
+  }
+  const updated = store.getTicket(ticket.id);
+  broadcast("message_added", { ticketId: ticket.id, message, delivery });
+  broadcast("ticket_updated", updated);
+  broadcast("dashboard", dashboardPayload());
+  res.json({ messaged: true, delivery, ticket: updated });
+});
+
 app.post("/api/simulate-message", async (req, res) => {
   try {
     const result = await handleIncomingMessage({
@@ -390,7 +435,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
   });
   // Known booking flows are deterministic and must not depend on a temporary
   // provider outage. Open-ended questions still use the AI fallback policy.
-  const scheduling = analysis.directInfo ? null : schedulingStep(text, history, client);
+  const scheduling = analysis.directInfo ? null : schedulingStep(text, history, client, analysis.intent);
   if (scheduling) {
     analysis = { ...analysis, ...scheduling, aiUnavailable: false, humanRequired: !!scheduling.complete,
       handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
@@ -423,6 +468,12 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
     analysis.waitingForClient = !!intake.nextQuestion;
   }
   const shouldReuse = !!activeTicket;
+  const pendingAppointment = analysis.waitingForConfirmation ? {
+    desired_service: analysis.desiredService || null,
+    desired_date: analysis.desiredDate || null,
+    desired_time: analysis.desiredTime || null,
+    confirmation_requested_at: new Date().toISOString(),
+  } : {};
   const updateTopic = !activeTicket?.human_required ||
     (analysis.humanRequired && activeTicket.category === "geral") ||
     (analysis.category === "urgencia" && activeTicket.category !== "urgencia");
@@ -438,6 +489,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
         human_required: activeTicket.human_required || analysis.humanRequired,
         status: analysis.waitingForConfirmation ? "aguardando_cliente" : analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : activeTicket.status,
         ai_summary: mergeSummary(activeTicket.ai_summary, analysis.summary),
+        ...pendingAppointment,
       })
     : store.createTicket({
         client_id: client.id,
@@ -449,6 +501,7 @@ async function handleIncomingMessage({ phone, name, text, source, signal, commit
         status: analysis.waitingForConfirmation ? "aguardando_cliente" : analysis.handoffComplete ? "em_atendimento" : analysis.waitingForClient ? "aguardando_cliente" : "novo",
         ai_summary: analysis.summary,
         source,
+        ...pendingAppointment,
       });
 
   store.addMessage(ticket.id, {

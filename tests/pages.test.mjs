@@ -4,7 +4,7 @@ import { createServer } from "vite";
 import React from "react";
 import { renderToString } from "react-dom/server";
 
-test("all ten pages render with populated and empty data, without Team", async () => {
+test("all pages render with populated and empty data, without Team", async () => {
   const vite = await createServer({
     server: { middlewareMode: true, hmr: false },
     appType: "custom",
@@ -81,7 +81,7 @@ test("all ten pages render with populated and empty data, without Team", async (
       staff: [{ id: 1, name: "Recepção", role: "Recepção", active: 1 }],
     };
     const pageEntries = Object.entries(pages).filter(([name]) => name.endsWith("Page"));
-    assert.equal(pageEntries.length, 10);
+    assert.equal(pageEntries.length, 11);
     const link = renderToString(React.createElement(pages.MessageText, { text: "Maps: https://www.google.com/maps/search/?api=1&query=Rua%20123" }));
     assert.match(link, /href="https:\/\/www.google.com\/maps\/search\//);
     assert.match(link, /Abrir no Google Maps/);

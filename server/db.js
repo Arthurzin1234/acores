@@ -79,6 +79,9 @@ export function createDatabase(rootDir, directory) {
   db.exec("PRAGMA optimize;");
   if (!db.prepare("PRAGMA table_info(tickets)").all().some((c) => c.name === "ai_paused"))
     db.exec("ALTER TABLE tickets ADD COLUMN ai_paused INTEGER NOT NULL DEFAULT 0");
+  const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all().map((c) => c.name);
+  for (const column of ["desired_service", "desired_date", "desired_time", "confirmation_requested_at"])
+    if (!ticketColumns.includes(column)) db.exec(`ALTER TABLE tickets ADD COLUMN ${column} TEXT`);
 
   return {
     raw: db,
@@ -257,8 +260,9 @@ export function createDatabase(rootDir, directory) {
         .prepare(
           `INSERT INTO tickets
             (client_id, phone, subject, category, status, priority, human_required,
-             assigned_to, ai_summary, source, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             assigned_to, ai_summary, source, created_at, updated_at,
+             desired_service, desired_date, desired_time, confirmation_requested_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           input.client_id || null,
@@ -272,7 +276,11 @@ export function createDatabase(rootDir, directory) {
           input.ai_summary || null,
           input.source || "whatsapp",
           timestamp,
-          timestamp
+          timestamp,
+          input.desired_service || null,
+          input.desired_date || null,
+          input.desired_time || null,
+          input.confirmation_requested_at || null
         );
       return this.getTicket(Number(inserted.lastInsertRowid));
     },
@@ -281,7 +289,8 @@ export function createDatabase(rootDir, directory) {
       if (!current) return null;
       db.prepare(
         `UPDATE tickets
-         SET subject = ?, category = ?, status = ?, priority = ?, assigned_to = ?, ai_summary = ?, human_required = ?, ai_paused = ?, updated_at = ?
+         SET subject = ?, category = ?, status = ?, priority = ?, assigned_to = ?, ai_summary = ?, human_required = ?, ai_paused = ?, updated_at = ?,
+             desired_service = ?, desired_date = ?, desired_time = ?, confirmation_requested_at = ?
          WHERE id = ?`
       ).run(
         input.subject ?? current.subject,
@@ -299,6 +308,10 @@ export function createDatabase(rootDir, directory) {
             : 0,
         input.ai_paused === undefined ? current.ai_paused : Number(!!input.ai_paused),
         now(),
+        input.desired_service ?? current.desired_service,
+        input.desired_date ?? current.desired_date,
+        input.desired_time ?? current.desired_time,
+        input.confirmation_requested_at ?? current.confirmation_requested_at,
         id
       );
       return this.getTicket(id);

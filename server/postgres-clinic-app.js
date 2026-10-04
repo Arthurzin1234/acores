@@ -50,7 +50,7 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     let analysis = await ai.analyze(text, cloudHistory.length ? cloudHistory : history);
     // Known booking flows are deterministic and must not depend on a temporary
     // provider outage. Open-ended questions still use the AI fallback policy.
-    const scheduling = analysis.directInfo ? null : schedulingStep(text, cloudHistory.length ? cloudHistory : history, client);
+    const scheduling = analysis.directInfo ? null : schedulingStep(text, cloudHistory.length ? cloudHistory : history, client, analysis.intent);
     if (scheduling) analysis = { ...analysis, ...scheduling, aiUnavailable: false, humanRequired: !!scheduling.complete,
       handoffComplete: !!scheduling.complete, waitingForClient: !!scheduling.waitingForClient,
       waitingForConfirmation: !!scheduling.complete };
@@ -70,10 +70,17 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
       if (intake.requestedSlot) analysis.summary = `${analysis.summary} Preferência informada: ${intake.requestedSlot}.`;
     }
     const wasHumanRequired = !!ticket.human_required;
+    const pendingAppointment = analysis.waitingForConfirmation ? {
+      desired_service: analysis.desiredService || null,
+      desired_date: analysis.desiredDate || null,
+      desired_time: analysis.desiredTime || null,
+      confirmation_requested_at: new Date().toISOString(),
+    } : {};
     ticket = await db.updateTicket(ticket.id, { subject: analysis.subject, category: analysis.category, priority: analysis.priority,
       status: analysis.waitingForConfirmation ? 'aguardando_cliente' : analysis.handoffComplete ? 'em_atendimento' : analysis.waitingForClient ? 'aguardando_cliente' : ticket.status,
       human_required: ticket.human_required || analysis.humanRequired,
-      ai_paused: ticket.ai_paused || !!analysis.handoffComplete || !!analysis.waitingForConfirmation, ai_summary: analysis.summary });
+      ai_paused: ticket.ai_paused || !!analysis.handoffComplete || !!analysis.waitingForConfirmation, ai_summary: analysis.summary,
+      ...pendingAppointment });
     broadcast();
     const message = source === 'whatsapp' || !analysis.reply
       ? null
@@ -150,6 +157,35 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     res.json({ ...ticket, demoConversationId: demo[0]?.ticket?.id || null });
   });
   app.post('/api/tickets/:id/messages', async (req, res) => { const ticket = await db.getTicket(Number(req.params.id)); const body = String(req.body.body || '').trim(); if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' }); if (!body) return res.status(400).json({ error: 'Mensagem vazia.' }); await db.updateTicket(ticket.id, { ai_paused: true, status: 'em_atendimento', human_required: true }); await whatsapp.setHumanPaused(ticket.phone); const message = await db.addMessage(ticket.id, { direction: 'outbound', author: req.user.email, body }); const delivery = req.body.sendToWhatsApp ? await whatsapp.sendText(ticket.phone, body, { id: `manual:${message.id}`, ticketId: ticket.id }) : { delivered: false, reason: 'Mensagem registrada no painel.' }; res.status(201).json({ message, delivery }); });
+  const RESCHEDULE_WINDOW_MS = 24 * 60 * 60 * 1000;
+  app.post('/api/tickets/:id/decline-appointment', async (req, res) => {
+    const ticket = await db.getTicket(Number(req.params.id));
+    if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' });
+    const requestedAt = Date.parse(ticket.confirmation_requested_at || ticket.updated_at || '');
+    const withinWindow = Number.isFinite(requestedAt) && Date.now() - requestedAt < RESCHEDULE_WINDOW_MS;
+    const wa = await whatsapp.snapshot();
+    if (!(withinWindow && wa.connected)) {
+      const handed = await db.updateTicket(ticket.id, { status: 'em_atendimento', ai_paused: true });
+      await whatsapp.setHumanPaused(ticket.phone, true);
+      broadcast();
+      return res.json({
+        messaged: false,
+        reason: withinWindow
+          ? 'WhatsApp desconectado: o cliente nao foi avisado e o chamado foi para a equipe.'
+          : 'Passaram mais de 24 horas do pedido: o cliente nao foi contactado e o chamado foi para a equipe.',
+        ticket: handed,
+      });
+    }
+    const when = [ticket.desired_date, ticket.desired_time].filter(Boolean).join(' às ');
+    const body = `Olá! Infelizmente não temos disponibilidade para ${when || 'o dia solicitado'}. 😔 Gostaria de reagendar para outro dia ou horário? Me diga uma nova preferência que eu já verifico para você. 🐾`;
+    await db.updateTicket(ticket.id, { status: 'aguardando_cliente', ai_paused: false, human_required: false, desired_date: null, desired_time: null, confirmation_requested_at: null });
+    await whatsapp.setHumanPaused(ticket.phone, false);
+    const message = await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body });
+    const delivery = await whatsapp.sendText(ticket.phone, body, { id: `decline:${message.id}`, ticketId: ticket.id })
+      .catch(() => ({ delivered: false, reason: 'O WhatsApp não confirmou o envio. A mensagem ficou registrada no painel.' }));
+    broadcast();
+    res.json({ messaged: true, delivery, ticket: await db.getTicket(ticket.id) });
+  });
   app.post('/api/simulate-message', async (req, res) => { try { const result = await processIncoming({ phone: String(req.body.phone || '').replace(/\D/g, ''), name: req.body.name, text: req.body.text, source: 'simulador' }); res.status(201).json(result); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.patch('/api/ai/settings', async (req, res) => { try { res.json(await aiConfig.save(req.body)); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.post('/api/ai/test/:provider', async (req, res) => { try { res.json(await ai.test(req.params.provider)); } catch (error) { res.status(400).json({ error: error.message || 'Não foi possível testar a IA.' }); } });

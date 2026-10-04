@@ -120,19 +120,25 @@ export async function createPostgresDatabase(rootDir, env = process.env) {
     },
     async createTicket(input) {
       const row = await one(`insert into tickets(client_id, phone, subject, category, status, priority, human_required,
-        assigned_to, ai_summary, source, created_at, updated_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) returning id`,
+        assigned_to, ai_summary, source, created_at, updated_at,
+        desired_service, desired_date, desired_time, confirmation_requested_at)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15) returning id`,
         [input.client_id || null, sanitizePhone(input.phone), input.subject || 'Novo atendimento', input.category || 'geral',
           input.status || 'novo', input.priority || 'normal', !!input.human_required, input.assigned_to || null,
-          input.ai_summary || null, input.source || 'whatsapp', now()]);
+          input.ai_summary || null, input.source || 'whatsapp', now(),
+          input.desired_service || null, input.desired_date || null, input.desired_time || null, input.confirmation_requested_at || null]);
       return this.getTicket(row.id);
     },
     async updateTicket(id, input) {
       const current = await this.getTicket(id); if (!current) return null;
       return normalizeTicket(await one(`update tickets set subject=$1, category=$2, status=$3, priority=$4, assigned_to=$5,
-        ai_summary=$6, human_required=$7, ai_paused=$8, updated_at=$9 where id=$10 returning *`,
+        ai_summary=$6, human_required=$7, ai_paused=$8, updated_at=$9,
+        desired_service=$11, desired_date=$12, desired_time=$13, confirmation_requested_at=$14 where id=$10 returning *`,
         [input.subject ?? current.subject, input.category ?? current.category, input.status ?? current.status,
           input.priority ?? current.priority, input.assigned_to ?? current.assigned_to, input.ai_summary ?? current.ai_summary,
-          input.human_required ?? current.human_required, input.ai_paused ?? current.ai_paused, now(), id]));
+          input.human_required ?? current.human_required, input.ai_paused ?? current.ai_paused, now(), id,
+          input.desired_service ?? current.desired_service, input.desired_date ?? current.desired_date,
+          input.desired_time ?? current.desired_time, input.confirmation_requested_at ?? current.confirmation_requested_at]));
     },
     async addMessage(ticketId, input) {
       const timestamp = now();

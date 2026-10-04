@@ -63,6 +63,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  declineAppointment: (id) =>
+    request(`/api/tickets/${id}/decline-appointment`, { method: "POST" }),
   saveClient: (body) =>
     request("/api/clients", { method: "POST", body: JSON.stringify(clean('clients', body)) }),
   updateClient: (id, body) =>

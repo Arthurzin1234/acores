@@ -360,6 +360,7 @@ export function createAIService(
         });
       return {
         ...rendered,
+        intent: decision.intent,
         reply: decorateReply(rendered.reply, rendered.category),
         aiProvider: runtime.provider,
       };

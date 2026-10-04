@@ -60,6 +60,10 @@ create unique index if not exists idx_messages_external_id on messages(external_
 alter table ai_settings add column if not exists instructions text not null default '';
 alter table auth_legal_acceptance add column if not exists terms_version text not null default '';
 alter table auth_legal_acceptance add column if not exists privacy_version text not null default '';
+alter table tickets add column if not exists desired_service text;
+alter table tickets add column if not exists desired_date text;
+alter table tickets add column if not exists desired_time text;
+alter table tickets add column if not exists confirmation_requested_at timestamptz;
 alter table clients enable row level security;
 alter table tickets enable row level security;
 alter table messages enable row level security;

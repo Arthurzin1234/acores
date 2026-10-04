@@ -48,25 +48,57 @@ const positionalAnswers = (text) => String(text || "")
 
 const dateValue = (text) => String(text || "").match(/(?:hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/iu)?.[0];
 const timeValue = (text) => String(text || "").match(/\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b/iu)?.[0];
+
+const toISODate = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const WEEKDAY_INDEX = [["domingo", 0], ["segunda", 1], ["terca", 2], ["quarta", 3], ["quinta", 4], ["sexta", 5], ["sabado", 6]];
+export function resolveDateToken(token, from = new Date()) {
+  const value = normalize(String(token || "").trim());
+  if (!value) return null;
+  const slash = value.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/u);
+  if (slash) {
+    const day = Number(slash[1]), month = Number(slash[2]);
+    let year = slash[3] ? Number(slash[3]) : from.getFullYear();
+    if (year < 100) year += 2000;
+    const date = new Date(year, month - 1, day, 12);
+    return date.getMonth() === month - 1 && date.getDate() === day ? toISODate(date) : null;
+  }
+  const base = new Date(from); base.setHours(12, 0, 0, 0);
+  if (value === "hoje") return toISODate(base);
+  if (value === "amanha") { base.setDate(base.getDate() + 1); return toISODate(base); }
+  const weekday = WEEKDAY_INDEX.find(([name]) => value.startsWith(name))?.[1];
+  if (weekday === undefined) return null;
+  base.setDate(base.getDate() + (weekday - base.getDay() + 7) % 7);
+  return toISODate(base);
+}
+export function normalizeTimeToken(token) {
+  const match = String(token || "").match(/^(\d{1,2})(?::(\d{2})|h(\d{1,2})?)?/iu);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = match[2] !== undefined ? Number(match[2]) : match[3] !== undefined ? Number(match[3]) : 0;
+  if (hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
 export const INITIAL_INTAKE_FORM = "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Nome do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊";
 
 const serviceValue = (text) => {
   const value = normalize(text);
-  if (/castra/.test(value)) return { name: 'Castração', surgery: true };
-  if (/cirurg/.test(value)) return { name: 'Cirurgia', surgery: true };
-  if (/banho|tosa|higien/.test(value)) return { name: 'Banho e tosa', surgery: false };
-  if (/vacina/.test(value)) return { name: 'Vacinação', surgery: false };
-  if (/consulta|checkup|retorno/.test(value)) return { name: 'Consulta', surgery: false };
+  if (/castra/.test(value)) return { name: 'Castração', code: 'cirurgia', surgery: true };
+  if (/cirurg/.test(value)) return { name: 'Cirurgia', code: 'cirurgia', surgery: true };
+  if (/banho|tosa|higien/.test(value)) return { name: 'Banho e tosa', code: 'banho_tosa', surgery: false };
+  if (/vacina/.test(value)) return { name: 'Vacinação', code: 'vacina', surgery: false };
+  if (/consulta|checkup|retorno/.test(value)) return { name: 'Consulta', code: 'consulta', surgery: false };
   return null;
 };
 
-export function schedulingStep(text, history = [], client = {}) {
+export function schedulingStep(text, history = [], client = {}, classifiedIntent = '') {
   const currentMessage = normalize(text).trim().replace(/\s+/gu, ' ');
   if (/^(?:o+i+|ol+a+|e\s*ai|hey|hello|bom dia|boa tarde|boa noite)[!.?,\s]*$/u.test(currentMessage)) return null;
   const inbound = [...history.filter((message) => message.direction === 'inbound').map((message) => message.body), text].join('\n');
-  const request = /agend|marcar|hor[aá]rio|vaga|castra|cirurg|banho|tosa|consulta|vacina|checkup|retorno/iu.test(inbound);
+  const request = ['appointment', 'surgery'].includes(classifiedIntent) ||
+    /agend|marcar|hor[aá]rio|vaga|castra|cirurg|banho|tosa|consulta|vacina|checkup|retorno/iu.test(inbound);
   if (!request) return null;
-  const service = serviceValue(inbound);
+  const service = serviceValue(inbound) || (classifiedIntent === 'surgery' ? { name: 'Cirurgia', code: 'cirurgia', surgery: true } : null);
   if (!service) return { reply: 'Claro! Qual atendimento você gostaria de agendar?', waitingForClient: true, category: 'geral', subject: 'Agendamento a identificar' };
   const lastQuestion = normalize([...history].reverse().find((message) => message.direction === 'outbound')?.body || '');
   const current = collectPatient(text, history, {});
@@ -109,6 +141,10 @@ export function schedulingStep(text, history = [], client = {}) {
     category: service.surgery ? 'cirurgia' : (service.name === 'Banho e tosa' ? 'banho_tosa' : 'consulta'),
     subject: `Agendamento de ${service.name}`,
     summary: `Serviço: ${service.name}. Data desejada: ${desiredDate}. Horário desejado: ${desiredTime}.`,
+    desiredService: service.code,
+    desiredDate: resolveDateToken(desiredDate),
+    desiredTime: normalizeTimeToken(desiredTime),
+    surgery: service.surgery,
   };
 }
 

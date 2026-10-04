@@ -23,6 +23,7 @@ import { api } from "./api.js";
 import {
   HomePage,
   ConversationsPage,
+  ConfirmationsPage,
   AppointmentsPage,
   SurgeriesPage,
   PatientsPage,
@@ -37,6 +38,7 @@ import { activeTicket } from "./ui.jsx";
 const navigation = [
   ["inicio", "Início", House],
   ["conversas", "Conversas", MessageCircle],
+  ["confirmacoes", "Confirmações", ClipboardList],
   ["agendamentos", "Agendamentos", CalendarDays],
   ["cirurgias", "Cirurgias", Scissors],
   ["pacientes", "Pacientes", PawPrint],
@@ -45,6 +47,8 @@ const navigation = [
   ["relatorios", "Relatórios", ChartNoAxesCombined],
   ["configuracoes", "Configurações", Settings],
 ];
+const dPendingConfirmations = (dashboard) =>
+  dashboard.tickets.filter((ticket) => ticket.status === "aguardando_cliente" && ticket.ai_paused).length;
 function readRoute() {
   const [path, params] = window.location.hash.replace(/^#\/?/, "").split("?");
   return { page: path || "inicio", params: new URLSearchParams(params) };
@@ -61,6 +65,7 @@ export default function App() {
   const [live, setLive] = useState(false);
   const actionLock = useRef(false);
   const noticeTimer = useRef(null);
+  const knownNotificationIds = useRef(null);
   const refresh = useCallback(async () => {
     const payload = await api.dashboard();
     setDashboard(payload);
@@ -137,6 +142,16 @@ export default function App() {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(null), 6000);
   }, []);
+  useEffect(() => {
+    const unread = (dashboard?.notifications || []).filter((item) => !item.read_at);
+    if (knownNotificationIds.current === null) {
+      knownNotificationIds.current = new Set(unread.map((item) => item.id));
+      return;
+    }
+    const fresh = unread.find((item) => !knownNotificationIds.current.has(item.id));
+    unread.forEach((item) => knownNotificationIds.current.add(item.id));
+    if (fresh) notify(`${fresh.title}: ${fresh.body}`, fresh.level === "warning" ? "error" : "success");
+  }, [dashboard, notify]);
   async function run(action, message) {
     if (actionLock.current) return false;
     actionLock.current = true;
@@ -193,6 +208,7 @@ export default function App() {
   const pages = {
     inicio: HomePage,
     conversas: ConversationsPage,
+    confirmacoes: ConfirmationsPage,
     agendamentos: AppointmentsPage,
     cirurgias: SurgeriesPage,
     pacientes: PatientsPage,
@@ -244,6 +260,9 @@ export default function App() {
               <span>{label}</span>
               {id === "conversas" && openTickets.length > 0 && (
                 <span className="nav-count">{openTickets.length}</span>
+              )}
+              {id === "confirmacoes" && dPendingConfirmations(dashboard) > 0 && (
+                <span className="nav-count">{dPendingConfirmations(dashboard)}</span>
               )}
             </a>
           ))}

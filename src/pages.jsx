@@ -37,6 +37,7 @@ import {
   Trash2,
   Play,
   Pause,
+  X,
 } from "lucide-react";
 import { api } from "./api.js";
 import AISettings from "./AISettings.jsx";
@@ -350,7 +351,7 @@ export function ConversationsPage({
         (filter === "humana"
           ? t.human_required && activeTicket(t)
           : filter === "confirmacao"
-            ? t.status === "aguardando_cliente"
+            ? t.status === "aguardando_cliente" && t.ai_paused
             : activeTicket(t))) &&
       matches(query, t.client_name, t.pet_name, t.id, t.phone),
   );
@@ -634,6 +635,94 @@ export function ConversationsPage({
   );
 }
 
+export function ConfirmationsPage({ dashboard: d, run, busy, go, clinical = true }) {
+  const [selected, setSelected] = useState(null);
+  const pending = d.tickets.filter((ticket) =>
+    ticket.status === "aguardando_cliente" && ticket.ai_paused,
+  );
+  const serviceFor = (ticket) =>
+    ["cirurgia", "banho_tosa", "consulta", "retorno", "vacina", "exame"].includes(ticket.category)
+      ? ticket.category
+      : "consulta";
+  const clientFor = (ticket) => d.clients.find((client) => client.id === ticket.client_id);
+  async function decline(ticket) {
+    await run(
+      () => api.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true }),
+      "O atendimento foi encaminhado para a equipe sem criar agendamento.",
+    );
+  }
+  async function confirm(value) {
+    if (!selected) return;
+    const ticket = selected;
+    const appointment = await run(
+      async () => {
+        await api.saveAppointment(value);
+        return api.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+      },
+      "Agendamento confirmado e adicionado à agenda.",
+    );
+    if (appointment) setSelected(null);
+  }
+  return (
+    <>
+      <PageTitle
+        title="Esperando confirmação"
+        subtitle="Revise os dados coletados pela IA antes de colocar o atendimento na agenda."
+      >
+        <span className="beta-badge">{pending.length} pendente{pending.length === 1 ? "" : "s"}</span>
+      </PageTitle>
+      <div className="confirmation-grid">
+        {pending.length ? pending.map((ticket) => {
+          const client = clientFor(ticket);
+          return (
+            <article className="confirmation-card" key={ticket.id}>
+              <div className="confirmation-card-heading">
+                {clinical ? <PetAvatar species={ticket.species} /> : <UserRound />}
+                <div>
+                  <h2>{ticket.client_name || ticket.phone}</h2>
+                  <p>{clinical ? `${ticket.pet_name || "Pet não informado"} · ` : ""}{ticket.phone}</p>
+                </div>
+                <Badge value={ticket.category} />
+              </div>
+              <dl className="confirmation-details">
+                <div><dt>Serviço</dt><dd>{serviceLabels[serviceFor(ticket)]}</dd></div>
+                <div><dt>Tutor</dt><dd>{client?.name || ticket.client_name || "Não informado"}</dd></div>
+                <div><dt>Resumo</dt><dd>{ticket.ai_summary || "Dados coletados pela IA."}</dd></div>
+              </dl>
+              <div className="confirmation-actions">
+                <a className="secondary-button" href={`#/conversas?id=${ticket.id}`}><MessageCircle />Ver conversa</a>
+                <button className="secondary-button" disabled={busy} onClick={() => decline(ticket)}>Não marcar agora</button>
+                <button className="primary-button" disabled={busy} onClick={() => setSelected(ticket)}><CalendarDays />Sim, marcar na agenda</button>
+              </div>
+            </article>
+          );
+        }) : (
+          <div className="table-surface confirmation-empty">
+            <Empty icon={CheckCheck} title="Nenhum atendimento aguardando confirmação" action={<a className="secondary-button" href="#/conversas">Ver conversas</a>} />
+          </div>
+        )}
+      </div>
+      {selected && (
+        <AppointmentModal
+          initial={{
+            client_id: selected.client_id,
+            service: serviceFor(selected),
+            scheduled_at: `${localDate()}T09:00`,
+            professional: "",
+            status: "confirmado",
+            notes: `Confirmado a partir do chamado #${selected.id}.`,
+          }}
+          date={localDate()}
+          clients={d.clients}
+          busy={busy}
+          onClose={() => setSelected(null)}
+          onSave={confirm}
+        />
+      )}
+    </>
+  );
+}
+
 export function AppointmentsPage({ dashboard: d, run, busy, route, go, clinical = true }) {
   const services = ['consulta','cirurgia','retorno','vacina','exame','banho_tosa'];
   const [date, setDate] = useState(route.params.get("data") || localDate());
@@ -653,6 +742,34 @@ export function AppointmentsPage({ dashboard: d, run, busy, route, go, clinical 
     const next = new Date(`${date}T12:00`);
     next.setDate(next.getDate() + offset);
     setDate(localDate(next));
+  }
+  const pendingAppointments = (d.tickets || []).filter(
+    (ticket) => ticket.status === "aguardando_cliente" && ticket.ai_paused && ticket.desired_date,
+  );
+  function acceptAppointment(ticket) {
+    return run(
+      async () => {
+        await api.saveAppointment({
+          client_id: ticket.client_id,
+          service: ticket.desired_service || "consulta",
+          scheduled_at: `${ticket.desired_date}T${ticket.desired_time || "09:00"}`,
+          professional: "",
+          status: "confirmado",
+          notes: `Confirmado a partir do chamado #${ticket.id}.`,
+        });
+        return api.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+      },
+      "Agendamento confirmado e adicionado à agenda.",
+    );
+  }
+  function declineAppointment(ticket) {
+    return run(
+      () => api.declineAppointment(ticket.id),
+      (result) =>
+        result?.messaged
+          ? "Cliente avisado sobre a indisponibilidade e convite para reagendar enviado."
+          : result?.reason || "Recusa registrada sem avisar o cliente.",
+    );
   }
   function close() {
     setEditing(null);
@@ -795,6 +912,35 @@ export function AppointmentsPage({ dashboard: d, run, busy, route, go, clinical 
           />
         )}
       </div>
+      {pendingAppointments.length > 0 && (
+        <div className="appointment-confirm-list">
+          {pendingAppointments.map((ticket) => {
+            const day = new Date(`${ticket.desired_date}T12:00`);
+            const [hh, mm] = String(ticket.desired_time || "09:00").split(":");
+            const time = mm === "00" ? `${Number(hh)} horas` : `${Number(hh)}:${mm}`;
+            const serviceLabel = (serviceLabels[ticket.desired_service] || serviceLabels.consulta || "").toLowerCase();
+            return (
+              <article className="appointment-confirm-card" key={ticket.id}>
+                <span className="appointment-confirm-icon"><CalendarDays /></span>
+                <div className="appointment-confirm-body">
+                  <strong>{ticket.client_name || ticket.phone} quer agendar uma {serviceLabel}</strong>
+                  <span>
+                    no dia {day.toLocaleDateString("pt-BR")} {day.toLocaleDateString("pt-BR", { weekday: "long" })} as {time}
+                  </span>
+                </div>
+                <div className="appointment-confirm-actions">
+                  <button className="primary-button" disabled={busy} onClick={() => acceptAppointment(ticket)}>
+                    <Check />Sim
+                  </button>
+                  <button className="secondary-button" disabled={busy} onClick={() => declineAppointment(ticket)}>
+                    <X />Não
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
       {editing && (
         <AppointmentModal
           clinical={clinical}

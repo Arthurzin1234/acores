@@ -2378,6 +2378,125 @@ progress::-moz-progress-bar {
   border-bottom: 1px solid var(--border);
   background: #fdfbff;
 }
+.confirmation-grid {
+  display: grid;
+  gap: 16px;
+}
+.confirmation-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 6px 20px #3824450a;
+}
+.confirmation-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.confirmation-card-heading > div {
+  min-width: 0;
+  flex: 1;
+}
+.confirmation-card-heading h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.confirmation-card-heading p {
+  margin: 4px 0 0;
+  color: #9887a5;
+  font-size: 12px;
+}
+.confirmation-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.confirmation-details div {
+  min-width: 0;
+}
+.confirmation-details dt {
+  color: #9b8ca8;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+.confirmation-details dd {
+  margin: 0;
+  color: #35254e;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.confirmation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.confirmation-empty {
+  padding: 35px;
+}
+@media (max-width: 760px) {
+  .confirmation-details {
+    grid-template-columns: 1fr;
+  }
+  .confirmation-actions > * {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+.appointment-confirm-list {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+.appointment-confirm-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: min(560px, 100%);
+  background: #f4f0fa;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 6px 20px #3824450a;
+}
+.appointment-confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #e3d8f6;
+  color: #6d3fd4;
+  flex: 0 0 auto;
+}
+.appointment-confirm-body {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.appointment-confirm-body strong {
+  color: #35254e;
+  font-size: 15px;
+}
+.appointment-confirm-body span {
+  color: #6f5f80;
+  font-size: 14px;
+}
+.appointment-confirm-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
+}
 .notification-row.read {
   background: #fff;
 }

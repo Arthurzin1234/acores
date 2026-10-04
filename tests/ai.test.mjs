@@ -47,6 +47,7 @@ test("clear service requests stay appointments when the provider returns other",
   const result = await ai.analyze("Olá, quero marcar uma consulta");
   assert.equal(result.category, "consulta");
   assert.equal(result.humanRequired, false);
+  assert.equal(result.intent, 'appointment');
   assert.match(result.reply, /nome do tutor/iu);
 });
 
