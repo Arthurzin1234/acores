@@ -654,14 +654,17 @@ export function ConfirmationsPage({ dashboard: d, run, busy, go, clinical = true
   async function confirm(value) {
     if (!selected) return;
     const ticket = selected;
-    const appointment = await run(
+    const result = await run(
       async () => {
         await api.saveAppointment(value);
-        return api.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+        return api.acceptAppointment(ticket.id);
       },
-      "Agendamento confirmado e adicionado à agenda.",
+      (result) =>
+        result?.messaged
+          ? "Agendamento confirmado e cliente avisado no WhatsApp."
+          : result?.reason || "Agendamento confirmado e adicionado à agenda.",
     );
-    if (appointment) setSelected(null);
+    if (result) setSelected(null);
   }
   return (
     <>
