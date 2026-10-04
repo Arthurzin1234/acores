@@ -12,6 +12,37 @@ const validName = (value) => /^[\p{L}][\p{L}\s'-]{0,59}$/u.test(value) &&
   value.split(/\s+/u).length <= 5 &&
   !/^(nao|sim|oi|ola|nao sei|obrigad[oa]|meu|minha|pet|tutor)$/u.test(normalize(value));
 
+// Palavras que encerram um nome em texto livre: "Nome arthur gato" → "arthur",
+// "Nome do pet remela queria marcar" → "remela".
+const NAME_STOPWORDS = new Set([
+  "queria", "quero", "deseja", "gostaria", "marcar", "agendar", "reservar", "preciso",
+  "para", "pra", "pro", "as", "e", "eh", "hoje", "amanha", "dia", "horario", "manha", "tarde", "noite",
+  "consulta", "castracao", "cirurgia", "banho", "tosa", "vacina", "exame", "retorno",
+  "gato", "gata", "gatos", "gatas", "cachorro", "cachorra", "cachorros", "cachorras",
+  "cao", "caes", "cadela", "felina", "felino", "canina", "canino", "coelho", "coelha",
+  "ave", "passaro", "hamster", "tartaruga",
+  "anos", "ano", "meses", "mes", "dias",
+  "nome", "pet", "tutor", "responsavel", "meu", "minha",
+  "segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo",
+]);
+
+// Coleta as primeiras palavras que formam um nome, parando em números,
+// pontuação ou palavras que claramente não fazem parte do nome.
+const leadingName = (segment) => {
+  const words = String(segment || "").trim().split(/\s+/u).filter(Boolean);
+  const kept = [];
+  for (const word of words) {
+    if (/\d/u.test(word)) break;
+    const bare = word.replace(/[^\p{L}'-]/gu, "");
+    if (!bare) break;
+    if (NAME_STOPWORDS.has(normalize(bare))) break;
+    kept.push(bare);
+    if (kept.length >= 3) break;
+  }
+  const name = kept.join(" ");
+  return validName(name) ? name : "";
+};
+
 const labeledValue = (text, pattern) => cleanValue(String(text || "").match(pattern)?.[1]);
 
 const speciesValue = (text) => {
@@ -47,7 +78,21 @@ const positionalAnswers = (text) => String(text || "")
   .filter(Boolean);
 
 const dateValue = (text) => String(text || "").match(/(?:hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/iu)?.[0];
-const timeValue = (text) => String(text || "").match(/\b\d{1,2}(?::\d{2}|h(?:\d{2})?)\b/iu)?.[0];
+// Aceita "9h", "9:30", "às 9", "9 da manhã", "9 da tarde/noite". Horas soltas
+// só contam quando vêm com pista de horário (h, :, preposição ou período do dia),
+// para não confundir com idade ("2 anos") ou outros números.
+const timeValue = (text) => {
+  const value = normalize(text);
+  const midday = value.match(/\bmeio[- ]?dia\b|\bmeia[- ]?noite\b/u);
+  if (midday) return midday[0];
+  const explicit = value.match(/\b\d{1,2}(?::\d{2}|h\d{1,2}|\s?h)\b/u);
+  if (explicit) return explicit[0];
+  const meridiem = value.match(/\b(\d{1,2})\s*(?:hs?)?\s*(?:da|de|à|as|às)?\s*(manha|tarde|noite|meia[- ]noite|madrugada)\b/u);
+  if (meridiem) return meridiem[0].trim();
+  const withPrep = value.match(/\b(?:as|às|a|pras|para|pelas)\s+(\d{1,2})(?::\d{2}|h\d{1,2})?\b/u);
+  if (withPrep) return withPrep[0].trim();
+  return undefined;
+};
 
 const toISODate = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -72,11 +117,19 @@ export function resolveDateToken(token, from = new Date()) {
   return toISODate(base);
 }
 export function normalizeTimeToken(token) {
-  const match = String(token || "").match(/^(\d{1,2})(?::(\d{2})|h(\d{1,2})?)?/iu);
+  const value = normalize(String(token || "")).trim();
+  if (!value) return null;
+  if (/meio[- ]?dia/.test(value)) return "12:00";
+  if (/meia[- ]?noite/.test(value)) return "00:00";
+  const match = value.match(/(\d{1,2})(?::(\d{2})|h(\d{1,2})?)?/u);
   if (!match) return null;
-  const hours = Number(match[1]);
+  let hours = Number(match[1]);
   const minutes = match[2] !== undefined ? Number(match[2]) : match[3] !== undefined ? Number(match[3]) : 0;
   if (hours > 23 || minutes > 59) return null;
+  // "9 da tarde/noite" → horário à tarde; sem pista, mantém como digitado.
+  const afternoon = /\b(?:tarde|noite)\b/u.test(value);
+  if (afternoon && hours >= 1 && hours <= 11) hours += 12;
+  if (/\b(?:manha|madrugada)\b/u.test(value) && hours === 12) hours = 0;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 export const INITIAL_INTAKE_FORM = "🐶 **Me passa algumas informações, por favor?**\n• Nome do tutor:\n• Espécie do pet: 🐶🐱\n• Idade do pet:\n• Nome do pet:\n• Melhor dia e horário para a recepção retornar: 📅⏰\nObrigado! 😊";
@@ -162,16 +215,22 @@ export function collectPatient(text, history, client = {}) {
   else if (/idade do (seu )?pet|idade em meses ou anos/.test(question)) expected = "pet_age";
 
   // A resposta pode conter vários campos: "tutor Arthur, pet Ronaldo, cachorro, 3 anos".
-  // Extraímos os rótulos antes de usar a pergunta anterior como fallback.
-  const tutor = labeledValue(text, /(?:nome do tutor|nome do respons[aá]vel|tutor|respons[aá]vel)\s*(?:é|eh|e|:|-)\s*([^,;\n.!?]+)/iu);
-  const pet = labeledValue(text, /(?:nome do (?:seu )?pet|(?:meu )?pet)\s*(?:é|eh|e|:|-)\s*([^,;\n.!?]+)/iu);
-  if (tutor && validName(tutor)) patch.name = tutor;
-  if (pet && validName(pet)) patch.pet_name = pet;
+  // Também aceita rótulos sem separador: "Nome arthur gato" / "Nome do pet remela queria...".
+  const tutorSegment = String(text || "").match(/(?:nome do (?:tutor|respons[aá]vel)|(?:o )?(?:tutor|respons[aá]vel))\s*(?:é|eh|e|:|-)?\s*([^,;\n]+)/iu)?.[1]
+    ?? String(text || "").match(/(?:^|\n)\s*nome\s*(?:é|eh|e|:|-)?\s+(?!do\s+(?:seu\s+|meu\s+)?pet\b)([^,;\n]+)/iu)?.[1];
+  const petSegment = String(text || "").match(/(?:nome do (?:seu |meu )?pet|(?:meu |o )?pet)\s*(?:é|eh|e|:|-)?\s*([^,;\n]+)/iu)?.[1];
+  const tutor = leadingName(tutorSegment);
+  const pet = leadingName(petSegment);
+  if (tutor) patch.name = tutor;
+  if (pet) patch.pet_name = pet;
   const species = speciesValue(text);
   if (species) patch.species = species;
   // The WhatsApp form is multiline, so `.` cannot be used between its labels.
   const groupedQuestion = /nome do tutor[\s\S]*esp[eé]cie[\s\S]*idade/iu.test(question);
-  const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) || groupedQuestion
+  // Idade com unidade explícita ("2 anos", "6 meses") é sempre capturada, mesmo
+  // em mensagem fria sem pergunta anterior.
+  const hasAgeUnit = /\b\d{1,2}(?:[.,]\d{1,2})?\s*(?:anos?|mes(?:es)?|dias?)\b/iu.test(text);
+  const age = expected === "pet_age" || /idade\s*(?:é|eh|e|:|-)/iu.test(text) || groupedQuestion || hasAgeUnit
     ? ageValue(text)
     : undefined;
   if (age) patch.pet_age = age;
