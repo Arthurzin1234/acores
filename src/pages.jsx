@@ -757,9 +757,12 @@ export function AppointmentsPage({ dashboard: d, run, busy, route, go, clinical 
           status: "confirmado",
           notes: `Confirmado a partir do chamado #${ticket.id}.`,
         });
-        return api.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+        return api.acceptAppointment(ticket.id);
       },
-      "Agendamento confirmado e adicionado à agenda.",
+      (result) =>
+        result?.messaged
+          ? "Agendamento confirmado e cliente avisado no WhatsApp."
+          : result?.reason || "Agendamento confirmado na agenda.",
     );
   }
   function declineAppointment(ticket) {

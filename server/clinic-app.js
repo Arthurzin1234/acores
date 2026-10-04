@@ -289,6 +289,57 @@ app.post("/api/tickets/:id/decline-appointment", async (req, res) => {
   res.json({ messaged: true, delivery, ticket: updated });
 });
 
+const ACCEPT_WINDOW_MS = 12 * 60 * 60 * 1000;
+app.post("/api/tickets/:id/accept-appointment", async (req, res) => {
+  const ticket = store.getTicket(Number(req.params.id));
+  if (!ticket)
+    return res.status(404).json({ error: "Chamado nao encontrado." });
+  const confirmTicket = () =>
+    store.updateTicket(ticket.id, { status: "em_atendimento", ai_paused: true });
+  const requestedAt = Date.parse(ticket.confirmation_requested_at || ticket.updated_at || "");
+  const withinWindow = Number.isFinite(requestedAt) && Date.now() - requestedAt < ACCEPT_WINDOW_MS;
+  // Evita duplicar: se um humano (ou o bot) já confirmou ao cliente, não reenvia.
+  const alreadySent = store
+    .listMessages(ticket.id)
+    .some((message) => message.direction === "outbound" && /confirmad/iu.test(message.body || ""));
+  const canMessage =
+    withinWindow && !alreadySent && whatsapp.status.connected && whatsapp.policy.account;
+  if (!canMessage) {
+    const handed = confirmTicket();
+    whatsapp.setHumanPaused(ticket.phone, true);
+    broadcast("ticket_updated", handed);
+    broadcast("dashboard", dashboardPayload());
+    return res.json({
+      messaged: false,
+      reason: alreadySent
+        ? "Agendamento confirmado na agenda. O cliente já havia recebido a confirmação, então nada foi reenviado."
+        : withinWindow
+          ? "Agendamento confirmado na agenda, mas o WhatsApp está desconectado: o cliente não foi avisado."
+          : "Agendamento confirmado na agenda. Passaram mais de 12 horas do pedido, então o cliente não foi avisado.",
+      ticket: handed,
+    });
+  }
+  const when = [ticket.desired_date, ticket.desired_time].filter(Boolean).join(" às ");
+  const body = `Olá! Seu agendamento para ${when || "a data solicitada"} foi confirmado. ✅ Até breve! 🐾`;
+  const message = whatsapp.queue.transaction(() => {
+    const saved = store.addMessage(ticket.id, { direction: "outbound", author: assistantName, body });
+    confirmTicket();
+    whatsapp.setHumanPaused(ticket.phone, true);
+    return saved;
+  });
+  let delivery = { delivered: false, reason: "Mensagem registrada no painel." };
+  try {
+    delivery = await whatsapp.sendText(ticket.phone, body, { id: `accept:${message.id}`, ticketId: ticket.id });
+  } catch {
+    delivery = { delivered: false, reason: "O WhatsApp não confirmou o envio. A mensagem ficou registrada no painel." };
+  }
+  const confirmed = store.getTicket(ticket.id);
+  broadcast("message_added", { ticketId: ticket.id, message, delivery });
+  broadcast("ticket_updated", confirmed);
+  broadcast("dashboard", dashboardPayload());
+  res.json({ messaged: true, delivery, ticket: confirmed });
+});
+
 app.post("/api/simulate-message", async (req, res) => {
   try {
     const result = await handleIncomingMessage({

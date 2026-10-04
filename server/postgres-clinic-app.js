@@ -186,6 +186,39 @@ export async function createPostgresClinicApp({ rootDir, dataDir, authDir }) {
     broadcast();
     res.json({ messaged: true, delivery, ticket: await db.getTicket(ticket.id) });
   });
+  const ACCEPT_WINDOW_MS = 12 * 60 * 60 * 1000;
+  app.post('/api/tickets/:id/accept-appointment', async (req, res) => {
+    const ticket = await db.getTicket(Number(req.params.id));
+    if (!ticket) return res.status(404).json({ error: 'Chamado nao encontrado.' });
+    const requestedAt = Date.parse(ticket.confirmation_requested_at || ticket.updated_at || '');
+    const withinWindow = Number.isFinite(requestedAt) && Date.now() - requestedAt < ACCEPT_WINDOW_MS;
+    const messages = await db.listMessages(ticket.id);
+    const alreadySent = messages.some((message) => message.direction === 'outbound' && /confirmad/iu.test(message.body || ''));
+    const wa = await whatsapp.snapshot();
+    if (!(withinWindow && !alreadySent && wa.connected)) {
+      const handed = await db.updateTicket(ticket.id, { status: 'em_atendimento', ai_paused: true });
+      await whatsapp.setHumanPaused(ticket.phone, true);
+      broadcast();
+      return res.json({
+        messaged: false,
+        reason: alreadySent
+          ? 'Agendamento confirmado na agenda. O cliente já havia recebido a confirmação, então nada foi reenviado.'
+          : withinWindow
+            ? 'Agendamento confirmado na agenda, mas o WhatsApp está desconectado: o cliente não foi avisado.'
+            : 'Agendamento confirmado na agenda. Passaram mais de 12 horas do pedido, então o cliente não foi avisado.',
+        ticket: handed,
+      });
+    }
+    const when = [ticket.desired_date, ticket.desired_time].filter(Boolean).join(' às ');
+    const body = `Olá! Seu agendamento para ${when || 'a data solicitada'} foi confirmado. ✅ Até breve! 🐾`;
+    await db.updateTicket(ticket.id, { status: 'em_atendimento', ai_paused: true });
+    await whatsapp.setHumanPaused(ticket.phone, true);
+    const message = await db.addMessage(ticket.id, { direction: 'outbound', author: 'Açores IA', body });
+    const delivery = await whatsapp.sendText(ticket.phone, body, { id: `accept:${message.id}`, ticketId: ticket.id })
+      .catch(() => ({ delivered: false, reason: 'O WhatsApp não confirmou o envio. A mensagem ficou registrada no painel.' }));
+    broadcast();
+    res.json({ messaged: true, delivery, ticket: await db.getTicket(ticket.id) });
+  });
   app.post('/api/simulate-message', async (req, res) => { try { const result = await processIncoming({ phone: String(req.body.phone || '').replace(/\D/g, ''), name: req.body.name, text: req.body.text, source: 'simulador' }); res.status(201).json(result); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.patch('/api/ai/settings', async (req, res) => { try { res.json(await aiConfig.save(req.body)); } catch { res.status(400).json({ error: 'Não foi possível concluir a operação. Confira os dados.' }); } });
   app.post('/api/ai/test/:provider', async (req, res) => { try { res.json(await ai.test(req.params.provider)); } catch (error) { res.status(400).json({ error: error.message || 'Não foi possível testar a IA.' }); } });
