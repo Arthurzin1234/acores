@@ -707,12 +707,14 @@ export function ConfirmationsPage({ dashboard: d, run, busy, go, clinical = true
           initial={{
             client_id: selected.client_id,
             service: serviceFor(selected),
-            scheduled_at: `${localDate()}T09:00`,
+            scheduled_at: selected.desired_date
+              ? `${selected.desired_date}T${selected.desired_time || "09:00"}`
+              : `${localDate()}T09:00`,
             professional: "",
             status: "confirmado",
             notes: `Confirmado a partir do chamado #${selected.id}.`,
           }}
-          date={localDate()}
+          date={selected.desired_date || localDate()}
           clients={d.clients}
           busy={busy}
           onClose={() => setSelected(null)}

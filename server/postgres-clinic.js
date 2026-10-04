@@ -29,7 +29,7 @@ export async function createPostgresClinicStore(db, env = process.env) {
     postgres: true,
     async snapshot() {
       const [appointments, checklist, neonatal, settings] = await Promise.all([
-        db.many(`select a.*,c.name as client_name,c.pet_name,c.species from appointments a join clients c on c.id=a.client_id order by a.scheduled_at`),
+        db.many(`select a.id,a.client_id,a.service,to_char(a.scheduled_at,'YYYY-MM-DD"T"HH24:MI') as scheduled_at,a.professional,a.status,a.notes,a.created_at,c.name as client_name,c.pet_name,c.species from appointments a join clients c on c.id=a.client_id order by a.scheduled_at`),
         db.many('select * from checklist_items'),
         db.many(`select n.*,c.name as client_name,c.pet_name,c.species,c.pet_age from neonatal_care n join clients c on c.id=n.client_id order by n.updated_at desc`),
         db.one('select * from clinic_settings where id=1'),
