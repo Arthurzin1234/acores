@@ -147,17 +147,21 @@ const serviceValue = (text) => {
 export function schedulingStep(text, history = [], client = {}, classifiedIntent = '') {
   const currentMessage = normalize(text).trim().replace(/\s+/gu, ' ');
   if (/^(?:o+i+|ol+a+|e\s*ai|hey|hello|bom dia|boa tarde|boa noite)[!.?,\s]*$/u.test(currentMessage)) return null;
-  const inbound = [...history.filter((message) => message.direction === 'inbound').map((message) => message.body), text].join('\n');
+  // A memória guarda conversas antigas do mesmo número. Corta o histórico no último
+  // encerramento para não reaproveitar data/horário/serviço de um atendimento já concluído.
+  const boundary = history.findLastIndex((message) => message.direction === 'outbound' &&
+    /pedido recebido|recep[cç][aã]o (?:confirmar[aá]|continuar[aá])/iu.test(message.body || ''));
+  const scope = boundary >= 0 ? history.slice(boundary + 1) : history;
+  const inbound = [...scope.filter((message) => message.direction === 'inbound').map((message) => message.body), text].join('\n');
   const request = ['appointment', 'surgery'].includes(classifiedIntent) ||
     /agend|marcar|hor[aá]rio|vaga|castra|cirurg|banho|tosa|consulta|vacina|checkup|retorno/iu.test(inbound);
   if (!request) return null;
   const service = serviceValue(inbound) || (classifiedIntent === 'surgery' ? { name: 'Cirurgia', code: 'cirurgia', surgery: true } : null);
   if (!service) return { reply: 'Claro! Qual atendimento você gostaria de agendar?', waitingForClient: true, category: 'geral', subject: 'Agendamento a identificar' };
-  const lastQuestion = normalize([...history].reverse().find((message) => message.direction === 'outbound')?.body || '');
-  const current = collectPatient(text, history, {});
+  const current = collectPatient(text, scope, {});
   const patient = { ...client, ...current.patch };
   const knownClient = !!(client.name && client.name !== 'Cliente sem nome');
-  const alreadyGuided = history.some((message) => message.direction === 'outbound' &&
+  const alreadyGuided = scope.some((message) => message.direction === 'outbound' &&
     /como j[aá] possu[ií]mos algumas das suas informa[cç][oõ]es|qual [ée] o nome|qual dia|qual hor[aá]rio/iu.test(message.body));
   const ask = (question) => knownClient && !alreadyGuided
     ? `Como já possuímos algumas das suas informações, preciso apenas saber: ${question}`
@@ -168,7 +172,7 @@ export function schedulingStep(text, history = [], client = {}, classifiedIntent
   const desiredDate = dateValue(inbound);
   const desiredTime = timeValue(inbound);
   if (service.surgery) {
-    const formAlreadySent = history.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
+    const formAlreadySent = scope.some((message) => message.direction === 'outbound' && /me passa algumas informa[cç][oõ]es/iu.test(message.body));
     // A phone number with leftover pet fields is not a confirmed tutor record.
     // Until the tutor's name is known, always start surgery intake with the form.
     if (!formAlreadySent && !tutor)
